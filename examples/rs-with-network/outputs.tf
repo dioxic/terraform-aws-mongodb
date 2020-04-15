@@ -1,7 +1,3 @@
-output "zREADME" {
-  value = module.network.zREADME
-}
-
 output "vpc_cidr" {
   value = module.network.vpc_cidr
 }
@@ -18,8 +14,8 @@ output "bastion_public_ip" {
   value = module.network.bastion_public_ip
 }
 
-output "bastion_username" {
-  value = module.network.bastion_username
+output "mongo_private_ip" {
+  value = module.replicaset.mongodb_private_ip
 }
 
 output "private_key_name" {
