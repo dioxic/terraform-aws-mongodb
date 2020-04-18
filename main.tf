@@ -30,8 +30,6 @@ locals {
     ] : []
   
   nodes           = { for o in concat(local.shards,local.csrs) : o.key => o }
-  primary_nodes   = [for o in local.nodes : o if o.member == 0]
-  secondary_nodes = [for o in local.nodes : o if o.member != 0]
   replica_sets    = distinct([for o in local.nodes : lookup(o, "rs")])
   replica_cfg     = {
     for rs in local.replica_sets : rs => jsonencode({
@@ -44,31 +42,6 @@ locals {
       ]
     })
   }
-
-  bastion_ingress_rules = distinct(concat(
-    [ for o in local.shards : {
-        from_port                = lookup(o, "mongod_port")
-        to_port                  = lookup(o, "mongod_port")
-        protocol                 = "tcp"
-        description              = "MongoDB shard server port"
-        source_security_group_id = var.vpc_ssh_security_group_id
-      } if var.sharded
-    ],
-    [ for o in local.csrs : {
-        from_port                = lookup(o, "mongod_port")
-        to_port                  = lookup(o, "mongod_port")
-        protocol                 = "tcp"
-        description              = "MongoDB config server port"
-        source_security_group_id = var.vpc_ssh_security_group_id
-      }
-    ],
-    [
-      {
-        rule                     = "ssh-tcp"
-        source_security_group_id = var.vpc_ssh_security_group_id
-      }
-    ]
-  ))
 
   mongodb_internal_ingess = distinct(concat(
     [ for o in local.shards : {
@@ -101,7 +74,13 @@ locals {
 resource "aws_security_group" "mongodb" {
   name        = format("%s-%s", var.name, "mongodb")
   vpc_id      = var.vpc_id
-  description = "MongoDB hosts security group"
+  description = "MongoDB servers security group"
+  tags        = merge(
+    {
+      "Name" = format("%s-%s", var.name, "mongodb")
+    },
+    var.tags
+  )
 }
 
 resource "aws_security_group_rule" "ssh_rule" {
@@ -146,59 +125,6 @@ resource "aws_security_group_rule" "egress" {
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.mongodb.id
 }
-
-
-# module "mongodb_sg" {
-#   source  = "terraform-aws-modules/security-group/aws"
-#   version = "~> 3.0"
-
-#   name        = format("%s-%s", var.name, "mongodb")
-#   vpc_id      = var.vpc_id
-
-#   egress_rules        = ["all-all"]
-
-#   ingress_with_cidr_blocks = distinct(concat(
-#     [ for o in local.shards : {
-#         from_port   = lookup(o, "mongod_port")
-#         to_port     = lookup(o, "mongod_port")
-#         protocol    = "tcp"
-#         description = "MongoDB replicaset port"
-#         cidr_blocks = "0.0.0.0/0"
-#       } if !var.sharded
-#     ],
-#     [ for o in local.shards : {
-#         from_port   = lookup(o, "mongos_port")
-#         to_port     = lookup(o, "mongos_port")
-#         protocol    = "tcp"
-#         description = "MongoDB router port"
-#         cidr_blocks = "0.0.0.0/0"
-#       } if lookup(o, "mongos_port") != null
-#     ]
-#   ))
-
-#   ingress_with_source_security_group_id = local.bastion_ingress_rules
-
-#   ingress_with_self = distinct(concat(
-#     [ for o in local.shards : {
-#         from_port                = lookup(o, "mongod_port")
-#         to_port                  = lookup(o, "mongod_port")
-#         protocol                 = "tcp"
-#         description              = "MongoDB shard server port"
-#         self                     = true
-#       } if var.sharded
-#     ],
-#     [ for o in local.csrs : {
-#         from_port                = lookup(o, "mongod_port")
-#         to_port                  = lookup(o, "mongod_port")
-#         protocol                 = "tcp"
-#         description              = "MongoDB config server port"
-#         self                     = true
-#       }
-#     ]
-#   ))
-
-#   tags = var.tags
-# }
 
 resource "aws_instance" "mongodb" {
   for_each = local.nodes
@@ -257,7 +183,14 @@ ${contains(keys(each.value), "mongos_port") ? templatefile("${path.module}/templ
       port              = each.value.mongos_port
       mongos_conf       = var.mongos_conf
     })
-    mongos_service           = templatefile("${path.module}/templates/mongos.service.tpl", {})
+    mongos_service           = file("${path.module}/templates/mongos.service.tpl")
+  }
+) : "" }
+${each.value.member == 0 && var.sharded && !each.value.isConfigServer ? templatefile("${path.module}/templates/initiate-shard.sh.tpl", {
+    shardReplSetName = each.value.rs
+    shardHosts       = join(",",[ for o in local.shards : format("%s:%d", lookup(o, "hostname"), lookup(o, "mongod_port")) if lookup(o, "rs") == each.value.rs ])
+    shardName        = format("shard%d", each.value.shard)
+    mongos_port      = each.value.mongos_port
   }
 ) : "" }
 EOF

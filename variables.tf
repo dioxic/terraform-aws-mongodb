@@ -34,7 +34,7 @@ variable "mongos_port" {
 
 variable "shard_count" {
   type    = number
-  default = -1
+  default = 1
 }
 
 variable "member_count" {

@@ -3,11 +3,11 @@
 
 echo "Configuring mongos.conf"
 
-cat > /etc/mongos.conf << EOF
+cat > /etc/mongos.conf << 'EOF'
 ${mongos_conf}
 EOF
 
-cat > /usr/lib/systemd/system/mongos.service << EOF
+cat > /usr/lib/systemd/system/mongos.service << 'EOF'
 ${mongos_service}
 EOF
 

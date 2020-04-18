@@ -11,7 +11,7 @@ while true; do
 	ok=`echo $res | grep '"ok" : 1' | wc -l`
 	[ $ok -eq 1 ] && break
     if [ $count -eq 60 ]; then
-      echo "ERROR: failed to initiate replica set"
+      echo "ERROR: failed to initiate replica set: $res"
       exit 1
     fi
 	count=$((count+1))

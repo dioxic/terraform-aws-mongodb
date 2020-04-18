@@ -2,7 +2,7 @@
 
 echo "Configuring mongod.conf"
 
-cat > /etc/mongod.conf << EOF
+cat > /etc/mongod.conf << 'EOF'
 ${mongod_conf}
 EOF
 
