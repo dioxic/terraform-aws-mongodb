@@ -42,6 +42,6 @@ output "ssh_key_name" {
   value = module.network.ssh_key_name
 }
 
-output "nodes" {
-  value = module.replicaset.nodes
-}
+# output "nodes" {
+#   value = module.replicaset.nodes
+# }

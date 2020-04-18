@@ -55,6 +55,7 @@ module "replicaset" {
     mongodb_version           = local.mongodb_version
     sharded                   = true
     member_count              = 3
+    shard_count               = 3
     zone_id                   = module.network.zone_id
     subnet_ids                = module.network.private_subnets
     vpc_id                    = module.network.vpc_id
