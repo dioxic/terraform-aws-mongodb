@@ -21,13 +21,14 @@ processManagement:
 # network interfaces
 net:
   port: ${port}
-  bindIpAll: true
+  bindIp: localhost,${hostname}
 
 replication:
   replSetName: ${replSetName}
-%{ if clusterRole != ""}
+
+%{ if clusterRole != "" ~}
 sharding:
   clusterRole: ${clusterRole}
-%{ endif }
+%{ endif ~}
 
 ${mongod_conf}

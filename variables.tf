@@ -8,16 +8,28 @@ variable "name" {
   default     = ""
 }
 
+variable "config_mongod_port" {
+  description = "mongod port for config server, defaults to `27019`"
+  type        = number
+  default     = 27019
+}
+
+variable "sharded_mongod_port" {
+  description = "mongod port with sharded topology, defaults to `27018`"
+  type        = number
+  default     = 27018
+}
+
 variable "mongod_port" {
-  description = "mongod port, defaults to `27017`"
+  description = "mongod port with unsharded topology, defaults to `27017`"
   type        = number
   default     = 27017
 }
 
 variable "mongos_port" {
-  description = "mongos port, defaults to `27016`"
+  description = "mongos port, defaults to `27017`"
   type        = number
-  default     = 27016
+  default     = 27017
 }
 
 variable "shard_count" {
@@ -63,6 +75,11 @@ variable "mongod_conf" {
   default     = ""
 }
 
+variable "mongos_conf" {
+  description = "Additional config to add to mongos.conf file."
+  default     = ""
+}
+
 variable "mongodb_version" {
   description = "MongoDB version tag (e.g. 4.0.0 or 4.0.0-ent), defaults to \"4.2\"."
   default     = "4.2"
@@ -105,6 +122,12 @@ variable "vpc_security_group_ids" {
   type        = list(string)
   default     = []
 }
+
+variable "vpc_ssh_security_group_id" {
+  description = "VPC security group id to allow SSH access to the EC2 instances. Required."
+  default     = ""
+}
+
 
 variable "tags" {
   description = "Optional map of tags to set on resources, defaults to empty map."

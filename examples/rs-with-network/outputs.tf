@@ -7,15 +7,15 @@ output "vpc_id" {
 }
 
 output "bastion_security_group" {
-  value = module.network.bastion_security_group
+  value = module.network.bastion_security_group_id
 }
 
 output "bastion_public_ip" {
   value = module.network.bastion_public_ip
 }
 
-output "mongo_private_ip" {
-  value = module.replicaset.mongodb_private_ip
+output "mongodb_hostnames" {
+  value = module.replicaset.mongodb_hostnames
 }
 
 output "private_key_name" {
@@ -40,4 +40,8 @@ output "public_key_openssh" {
 
 output "ssh_key_name" {
   value = module.network.ssh_key_name
+}
+
+output "nodes" {
+  value = module.replicaset.nodes
 }

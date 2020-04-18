@@ -51,16 +51,17 @@ module "network" {
 module "replicaset" {
     source = "../../"
 
-    domain_name          = local.domain_name
-    mongodb_version      = local.mongodb_version
-    sharded              = false
-    member_count         = 3
-    zone_id              = module.network.zone_id
-    subnet_ids           = module.network.private_subnets
-    vpc_id               = module.network.vpc_id
-    csrs_ami             = data.aws_ami.base.id
-    shard_ami            = data.aws_ami.base.id
-    name                 = local.name
-    ssh_key_name         = local.ssh_key_name
-    tags                 = local.tags
+    domain_name               = local.domain_name
+    mongodb_version           = local.mongodb_version
+    sharded                   = true
+    member_count              = 3
+    zone_id                   = module.network.zone_id
+    subnet_ids                = module.network.private_subnets
+    vpc_id                    = module.network.vpc_id
+    vpc_ssh_security_group_id = module.network.bastion_security_group_id
+    csrs_ami                  = data.aws_ami.base.id
+    shard_ami                 = data.aws_ami.base.id
+    name                      = local.name
+    ssh_key_name              = local.ssh_key_name
+    tags                      = local.tags
 }

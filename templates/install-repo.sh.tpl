@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "Starting MongoDB repository setup"
+
 ### Configuration
 
 mongodb_version=${mongodb_version}
@@ -99,3 +101,5 @@ case "$distro_id" in
 		exit
 		;;
 esac
+
+echo "Completed MongoDB repository setup"
