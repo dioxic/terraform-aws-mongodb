@@ -3,9 +3,33 @@ locals {
     ssh_key_name      = "markbm"    
     domain_name       = "example.com"
     mongodb_version   = "4.2"
+    ami_owner         = "amazon"
+    ami_name          = "amzn2-ami-hvm-*-x86_64-gp2"
     tags = {
         owner = "mark.baker-munton"
     }
+}
+
+data "aws_availability_zones" "main" {}
+
+data "aws_ami" "base" {
+  most_recent = true
+  owners      = ["${local.ami_owner}"]
+
+  filter {
+	name   = "name"
+	values = ["${local.ami_name}"]
+  }
+
+  filter {
+	name   = "root-device-type"
+	values = ["ebs"]
+  }
+
+  filter {
+	name   = "virtualization-type"
+	values = ["hvm"]
+  }
 }
 
 module "network" {
@@ -17,8 +41,8 @@ module "network" {
     name                   = local.name
     ssh_key_name           = local.ssh_key_name
     mongodb_version        = local.mongodb_version
-    vpc_cidrs_private      = ["10.0.1.0/24"]
-    vpc_cidrs_public       = ["10.0.11.0/24"]
+    vpc_cidrs_private      = ["10.0.1.0/24","10.0.2.0/24","10.0.3.0/24"]
+    vpc_cidrs_public       = ["10.0.11.0/24","10.0.12.0/24","10.0.13.0/24"]
     vpc_cidr               = "10.0.0.0/16"
     domain_name            = local.domain_name
     tags                   = local.tags
@@ -29,12 +53,13 @@ module "replicaset" {
 
     domain_name          = local.domain_name
     mongodb_version      = local.mongodb_version
-    replicaset           = true
-    configServer         = true
-    #member_count         = 3
+    sharded              = false
+    member_count         = 3
     zone_id              = module.network.zone_id
     subnet_ids           = module.network.private_subnets
     vpc_id               = module.network.vpc_id
+    csrs_ami             = data.aws_ami.base.id
+    shard_ami            = data.aws_ami.base.id
     name                 = local.name
     ssh_key_name         = local.ssh_key_name
     tags                 = local.tags

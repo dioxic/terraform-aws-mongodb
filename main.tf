@@ -2,43 +2,22 @@ terraform {
   required_version = ">= 0.12.20"
 }
 
-data "aws_availability_zones" "main" {}
-
-data "aws_ami" "base" {
-  most_recent = true
-  owners      = ["${var.ami_owner}"]
-
-  filter {
-	name   = "name"
-	values = ["${var.ami_name}"]
-  }
-
-  filter {
-	name   = "root-device-type"
-	values = ["ebs"]
-  }
-
-  filter {
-	name   = "virtualization-type"
-	values = ["hvm"]
-  }
-}
-
 locals {
   shards        = flatten([
-    for i in range(var.sharded ? var.shards : 1) : [
-      for j in range(var.members) : {
+    for i in range(var.sharded ? var.shard_count : 1) : [
+      for j in range(var.member_count) : {
         key         = format("%s-shard-%02d-%02d", var.name, i, j)
         rs          = format("%s-shard-%02d", var.name, i)
         member      = j
         shard       = i
         hostname    = format("%s-shard-%02d-%02d.%s", var.name, i, j, var.domain_name)
+        isConfigServer = false
       }
     ]
   ])
   
   csrs           = var.sharded ? [
-    for j in range(var.members) : {
+    for j in range(var.member_count) : {
         key            = format("%s-config-00-%02d", var.name, j)
         rs             = format("%s-config-00", var.name)
         member         = j
@@ -81,8 +60,8 @@ module "mongodb_sg" {
 resource "aws_instance" "mongodb" {
   for_each = local.nodes
 
-  ami                    = each.isConfigServer ? var.csrs_instance_type : var.shard_instance_type
-  instance_type          = each.isConfigServer ? var.csrs_ami : var.shard_ami
+  ami                    = each.value.isConfigServer ? var.csrs_ami : var.shard_ami
+  instance_type          = each.value.isConfigServer ? var.csrs_instance_type : var.shard_instance_type
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [module.mongodb_sg.this_security_group_id]
   subnet_id              = element(
@@ -99,7 +78,7 @@ resource "aws_instance" "mongodb" {
 
   user_data              = <<EOF
 ${templatefile("${path.module}/templates/set-hostname.sh.tpl", {
-	  hostname = each.hostname
+	  hostname = each.value.hostname
   }
 )}
 ${templatefile("${path.module}/templates/install-repo.sh.tpl", {
@@ -111,10 +90,16 @@ ${templatefile("${path.module}/templates/install-mongod.sh.tpl", {
     mongodb_community = var.mongodb_community
     mongod_conf       = templatefile("${path.module}/templates/mongod.conf.tpl", {
       replSetName = each.value.rs
-      clusterRole = each.value.clusterRole
+      clusterRole = each.value.isConfigServer ? "configsvr" : var.sharded ? "shardsvr" : ""
+      port        = var.mongod_port
+      mongod_conf = var.mongod_conf
     })
   }
 )}
+${each.value.member == 0 ? templatefile("${path.module}/templates/initiate-replicaset.sh.tpl", {
+    rs_config = local.replica_cfg[each.value.rs]
+  }
+) : "" }
 EOF
 }
 

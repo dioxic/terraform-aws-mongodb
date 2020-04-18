@@ -39,8 +39,6 @@ else
 	exit 1;
 fi
 
-echo "Install complete"
-
 echo "Configuring mongod.conf"
 
 cat > /etc/mongod.conf << EOF
@@ -48,7 +46,7 @@ ${mongod_conf}
 EOF
 
 # Start MongoDB and enable on startup
-echo "Starting MongoDB service"
+echo "Starting mongod service"
 if systemctl >/dev/null 2>&1; then
 	systemctl daemon-reload
 	systemctl enable mongod

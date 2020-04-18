@@ -20,6 +20,21 @@ variable "mongos_port" {
   default     = 27016
 }
 
+variable "shard_count" {
+  type    = number
+  default = -1
+}
+
+variable "member_count" {
+  type    = number
+  default = 3
+}
+
+variable "sharded" {
+  type    = bool
+  default = false
+}
+
 variable "shard_ami" {
   description = "Machine image for config server hosts. Required."
 }
@@ -64,9 +79,10 @@ variable "vpc_id" {
   default     = ""
 }
 
-variable "subnet_id" {
-  description = "Subnet id for the MongoDB server(s). Required."
-  default     = ""
+variable "subnet_ids" {
+  description = "Subnet ids for the MongoDB server(s). Required."
+  type        = list(string)
+  default     = []
 }
 
 variable "zone_id" {
@@ -76,11 +92,6 @@ variable "zone_id" {
 
 variable "user_data" {
   description = "user_data script to pass in at runtime."
-  default     = ""
-}
-
-variable "mongod_conf" {
-  description = "extra mongod configuration."
   default     = ""
 }
 
