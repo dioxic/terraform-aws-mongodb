@@ -1,16 +1,13 @@
 locals {
-    name              = "markbm-tf"
-    ssh_key_name      = "markbm"    
+    name              = "example"
     domain_name       = "example.com"
     mongodb_version   = "4.2"
     ami_owner         = "amazon"
     ami_name          = "amzn2-ami-hvm-*-x86_64-gp2"
     tags = {
-        owner = "mark.baker-munton"
+        env = "development"
     }
 }
-
-data "aws_availability_zones" "main" {}
 
 data "aws_ami" "base" {
   most_recent = true
@@ -35,34 +32,29 @@ data "aws_ami" "base" {
 module "network" {
     source = "github.com/dioxic/terraform-aws-network"
 
-    create                 = true
     create_zone            = true
-    bastion_count          = 1
+    create_bastion         = false
     name                   = local.name
-    ssh_key_name           = local.ssh_key_name
+    create_private_subnets = false
+    ssh_key_name           = var.ssh_key_name
     mongodb_version        = local.mongodb_version
-    vpc_cidrs_private      = ["10.0.1.0/24","10.0.2.0/24","10.0.3.0/24"]
-    vpc_cidrs_public       = ["10.0.11.0/24","10.0.12.0/24","10.0.13.0/24"]
     vpc_cidr               = "10.0.0.0/16"
-    domain_name            = local.domain_name
+    zone_domain            = local.domain_name
     tags                   = local.tags
 }
 
 module "replicaset" {
     source = "../../"
 
-    domain_name               = local.domain_name
+    zone_domain               = local.domain_name
     mongodb_version           = local.mongodb_version
-    sharded                   = true
+    sharded                   = false
     member_count              = 3
-    shard_count               = 3
     zone_id                   = module.network.zone_id
-    subnet_ids                = module.network.private_subnets
+    subnet_ids                = module.network.public_subnets
     vpc_id                    = module.network.vpc_id
-    vpc_ssh_security_group_id = module.network.bastion_security_group_id
-    csrs_ami                  = data.aws_ami.base.id
-    shard_ami                 = data.aws_ami.base.id
+    image_id                  = data.aws_ami.base.id
     name                      = local.name
-    ssh_key_name              = local.ssh_key_name
+    ssh_key_name              = var.ssh_key_name
     tags                      = local.tags
 }

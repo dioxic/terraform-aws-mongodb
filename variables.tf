@@ -1,4 +1,4 @@
-variable "domain_name" {
+variable "zone_domain" {
   description = "The hosted zone domain."
   default     = ""
 }
@@ -47,22 +47,23 @@ variable "sharded" {
   default = false
 }
 
-variable "shard_ami" {
-  description = "Machine image for config server hosts. Required."
+variable "image_id" {
+  description = "Machine image for mongodb server hosts. Required."
 }
 
-variable "csrs_ami" {
-  description = "Machine image for config server hosts. Required."
+variable "config_server_image_id" {
+  description = "Machine image for config server hosts, defaults to `image_id`"
+  default     = ""
 }
 
-variable "shard_instance_type" {
-  description = "AWS instance type for shard host (e.g. m4.large), defaults to \"t2.micro\"."
+variable "instance_type" {
+  description = "AWS instance type for mongodb host (e.g. m4.large), defaults to \"t2.micro\"."
   default     = "t2.micro"
 }
 
-variable "csrs_instance_type" {
-  description = "AWS instance type for config server host (e.g. m4.large), defaults to \"t2.micro\"."
-  default     = "t2.micro"
+variable "config_server_instance_type" {
+  description = "AWS instance type for config server host (e.g. m4.large), overrides `instance_type` for config servers."
+  default     = ""
 }
 
 variable "cohost_mongos" {
@@ -126,6 +127,12 @@ variable "vpc_security_group_ids" {
 variable "vpc_ssh_security_group_id" {
   description = "VPC security group id to allow SSH access to the EC2 instances. Required."
   default     = ""
+}
+
+variable "ssh_from_security_group_only" {
+  description = "only allow the specified security group to SSH to mongo hosts. Set true if `vpc_ssh_security_group_id` is provided."
+  type        = bool
+  default     = false
 }
 
 

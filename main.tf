@@ -3,6 +3,9 @@ terraform {
 }
 
 locals {
+  config_server_image_id      = var.config_server_image_id != "" ? var.config_server_image_id : var.image_id
+  config_server_instance_type = var.config_server_instance_type != "" ? var.config_server_instance_type : var.instance_type
+
   shards        = flatten([
     for i in range(var.sharded ? var.shard_count : 1) : [
       for j in range(var.member_count) : {
@@ -11,8 +14,8 @@ locals {
         member      = j
         shard       = i
         mongod_port = var.sharded ? var.sharded_mongod_port : var.mongod_port
-        mongos_port = var.sharded && var.cohost_mongos ? var.mongos_port : null
-        hostname    = format("%s-shard-%02d-%02d.%s", var.name, i, j, var.domain_name)
+        mongos_port = var.sharded && var.cohost_mongos ? var.mongos_port : -1
+        hostname    = format("%s-shard-%02d-%02d.%s", var.name, i, j, var.zone_domain)
         isConfigServer = false
       }
     ]
@@ -24,7 +27,8 @@ locals {
         rs             = format("%s-config-00", var.name)
         member         = j
         mongod_port    = var.config_mongod_port
-        hostname       = format("%s-config-00-%02d.%s", var.name, j, var.domain_name)
+        mongos_port    = -1
+        hostname       = format("%s-config-00-%02d.%s", var.name, j, var.zone_domain)
         isConfigServer = true
       }
     ] : []
@@ -65,7 +69,7 @@ locals {
     [ for o in local.shards : {
         port        = lookup(o, "mongos_port")
         description = "MongoDB router port"
-      } if lookup(o, "mongos_port") != null
+      } if lookup(o, "mongos_port") != -1
     ]
   ))
 
@@ -83,7 +87,9 @@ resource "aws_security_group" "mongodb" {
   )
 }
 
-resource "aws_security_group_rule" "ssh_rule" {
+resource "aws_security_group_rule" "ssh_bastion" {
+  count = var.ssh_from_security_group_only ? 1 : 0
+
   type                     = "ingress"
   from_port                = 22
   to_port                  = 22
@@ -91,6 +97,18 @@ resource "aws_security_group_rule" "ssh_rule" {
   description              = "SSH from Bastion"
   security_group_id        = aws_security_group.mongodb.id
   source_security_group_id = var.vpc_ssh_security_group_id
+}
+
+resource "aws_security_group_rule" "ssh_anywhere" {
+  count = !var.ssh_from_security_group_only ? 1 : 0
+
+  type                     = "ingress"
+  from_port                = 22
+  to_port                  = 22
+  protocol                 = "tcp"
+  description              = "SSH from anywhere"
+  security_group_id        = aws_security_group.mongodb.id
+  cidr_blocks              = ["0.0.0.0/0"]
 }
 
 resource "aws_security_group_rule" "internal" {
@@ -129,8 +147,8 @@ resource "aws_security_group_rule" "egress" {
 resource "aws_instance" "mongodb" {
   for_each = local.nodes
 
-  ami                    = each.value.isConfigServer ? var.csrs_ami : var.shard_ami
-  instance_type          = each.value.isConfigServer ? var.csrs_instance_type : var.shard_instance_type
+  ami                    = each.value.isConfigServer ? local.config_server_image_id : var.image_id
+  instance_type          = each.value.isConfigServer ? local.config_server_instance_type : var.instance_type
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [aws_security_group.mongodb.id]
   subnet_id              = element(
@@ -160,7 +178,7 @@ ${templatefile("${path.module}/templates/install-packages.sh.tpl", {
     mongodb_community = var.mongodb_community
   }
 )}
-${templatefile("${path.module}/templates/configure-mongod.sh.tpl", {
+${each.value.mongod_port != -1  ? templatefile("${path.module}/templates/configure-mongod.sh.tpl", {
     mongod_conf       = templatefile("${path.module}/templates/mongod.conf.tpl", {
       replSetName = each.value.rs
       clusterRole = each.value.isConfigServer ? "configsvr" : var.sharded ? "shardsvr" : ""
@@ -169,13 +187,13 @@ ${templatefile("${path.module}/templates/configure-mongod.sh.tpl", {
       mongod_conf = var.mongod_conf
     })
   }
-)}
+) : ""}
 ${each.value.member == 0 ? templatefile("${path.module}/templates/initiate-replicaset.sh.tpl", {
     rs_config = local.replica_cfg[each.value.rs]
     port      = each.value.mongod_port
   }
 ) : "" }
-${contains(keys(each.value), "mongos_port") ? templatefile("${path.module}/templates/configure-mongos.sh.tpl", {
+${each.value.mongos_port != -1 ? templatefile("${path.module}/templates/configure-mongos.sh.tpl", {
     mongos_conf              = templatefile("${path.module}/templates/mongos.conf.tpl", {
       configReplSetName = local.csrs[0].rs
       configServerHosts = join(",",[ for o in local.csrs : format("%s:%d", lookup(o, "hostname"), lookup(o, "mongod_port")) ])
