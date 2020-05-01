@@ -1,3 +1,7 @@
+output "vpc_id" {
+  value = var.vpc_id
+}
+
 output "mongodb_security_group_id" {
   value = aws_security_group.mongodb.id
 }
@@ -19,6 +23,9 @@ output "nodes" {
 }
 
 output "replica_cfg" {
-  value = local.replica_cfg
+  value = [for o in local.replica_sets: o.cfg]
 }
 
+output "mongo_uri" {
+  value = local.mongo_uri
+}

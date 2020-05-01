@@ -8,7 +8,7 @@ systemLog:
 
 # Where and how to store data.
 storage:
-  dbPath: /var/lib/mongo
+  dbPath: ${db_path}
   journal:
     enabled: true
 

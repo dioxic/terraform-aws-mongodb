@@ -13,7 +13,7 @@ processManagement:
   timeZoneInfo: /usr/share/zoneinfo
 
 sharding:
-  configDB: ${configReplSetName}/${configServerHosts}
+  configDB: ${csrs_name}/${csrs_hosts}
 
 net:
   port: ${port}

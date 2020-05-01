@@ -50,16 +50,17 @@ module "network" {
 module "sharded_cluster" {
     source = "../../"
 
-    zone_domain                  = local.domain_name
-    mongodb_version              = local.mongodb_version
-    mongodb_community            = local.mongodb_community
-    sharded                      = true
-    member_count                 = 3
-    shard_count                  = 3
-    cohost_mongos                = true
-    mongos_port                  = 27017
-    sharded_mongod_port          = 27018
-    config_mongod_port           = 27016
+    zone_domain                   = local.domain_name
+    mongodb_version               = local.mongodb_version
+    mongodb_community             = local.mongodb_community
+    sharded                       = true
+    member_count                  = 3
+    shard_count                   = 3
+    cohost_mongos                 = true
+    mongos_port                   = 27017
+    sharded_mongod_port           = 27018
+    config_mongod_port            = 27016
+    data_block_device_volume_size = 100
 
     image_id                     = data.aws_ami.base.id
     config_server_image_id       = data.aws_ami.base.id
