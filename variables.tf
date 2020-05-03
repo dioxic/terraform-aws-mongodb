@@ -15,7 +15,7 @@ variable "data_replica_sets" {
     nodes = list(object({
       arbiter_only  = bool
       hidden        = bool
-      hostname      = string
+      fqdn          = string
       image_id      = string
       instance_type = string
       mongod_port   = number
@@ -37,7 +37,7 @@ variable "config_replica_set" {
     nodes = list(object({
       arbiter_only  = bool
       hidden        = bool
-      hostname      = string
+      fqdn          = string
       image_id      = string
       instance_type = string
       mongod_port   = number
@@ -56,7 +56,7 @@ variable "router_nodes" {
   description = "Standalone router node configuration"
   type        = list(object({
     name          = string
-    hostname      = string
+    fqdn          = string
     image_id      = string
     instance_type = string
     mongos_port   = number
@@ -89,9 +89,9 @@ variable "mongodb_version" {
 }
 
 variable "mongodb_community" {
-  description = "MongoDB community version, defaults to `false`."
+  description = "MongoDB community version, defaults to `true`."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_ssl" {

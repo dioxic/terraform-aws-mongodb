@@ -12,10 +12,10 @@ locals {
   parsed_router_nodes = var.router_nodes != null ? var.router_nodes : []
 
   replica_sets   = { for rs in concat(local.parsed_config_replica_set, local.parsed_data_replica_set) : rs.name => merge(rs, {
-    hosts     = [ for node in rs.nodes : format("%s:%d", node.hostname, node.mongod_port) ]
-    hosts_csv = join(",", [for node in rs.nodes : format("%s:%d", node.hostname, node.mongod_port)])
+    hosts     = [ for node in rs.nodes : format("%s:%d", node.fqdn, node.mongod_port) ]
+    hosts_csv = join(",", [for node in rs.nodes : format("%s:%d", node.fqdn, node.mongod_port)])
     uri       = format("mongodb://%s/?ssl=%s&replicaSet=%s",
-      join(",", [ for node in rs.nodes : format("%s:%d", node.hostname, node.mongod_port) ]),
+      join(",", [ for node in rs.nodes : format("%s:%d", node.fqdn, node.mongod_port) ]),
       var.enable_ssl,
       rs.name
     )
@@ -24,7 +24,7 @@ locals {
       members: [
       for o in rs.nodes : {
         _id = index(rs.nodes, o)
-        host = format("%s:%d", o.hostname, o.mongod_port)
+        host = format("%s:%d", o.fqdn, o.mongod_port)
         votes = o.votes
         hidden = o.hidden
         priority = o.priority
@@ -51,7 +51,7 @@ locals {
 
   nodes = { for node in concat(local.rs_nodes, local.parsed_router_nodes) : node.name => merge(local.default_node, node) }
 
-  router_hosts     = [ for node in local.nodes : join(":", [node.hostname,node.mongos_port]) if node.mongos_port != null ]
+  router_hosts     = [ for node in local.nodes : join(":", [node.fqdn, node.mongos_port]) if node.mongos_port != null ]
   router_uri       = format("mongodb://%s", join(",",slice(local.router_hosts, 0, min(3, length(local.router_hosts)))))
 
   sharded          = length(local.router_hosts) > 0
@@ -188,7 +188,7 @@ resource "aws_instance" "mongodb" {
 ${templatefile("${path.module}/templates/common.sh", {
     mongodb_version       = var.mongodb_version
     mongodb_community     = var.mongodb_community
-    hostname              = each.value.hostname
+    fqdn                  = each.value.fqdn
     mongo_uri             = local.mongo_uri
 })}
 set_hostname
@@ -209,7 +209,7 @@ ${each.value.mongod_port != null  ? templatefile("${path.module}/templates/confi
     mongod_conf           = templatefile("${path.module}/templates/mongod.config", {
       replSetName = each.value.rs_name
       clusterRole = local.replica_sets[each.value.rs_name].is_config_rs ? "configsvr" : local.sharded ? "shardsvr" : ""
-      hostname    = each.value.hostname
+      fqdn        = each.value.fqdn
       port        = each.value.mongod_port
       mongod_conf = var.mongod_conf
       db_path     = local.db_path
@@ -222,7 +222,7 @@ ${each.value.mongos_port != null ? templatefile("${path.module}/templates/config
     mongos_conf           = templatefile("${path.module}/templates/mongos.config", {
       csrs_name         = local.csrs_replica_set.name
       csrs_hosts        = local.csrs_replica_set.hosts_csv
-      hostname          = each.value.hostname
+      fqdn              = each.value.fqdn
       port              = each.value.mongos_port
       mongos_conf       = var.mongos_conf
     })
@@ -235,7 +235,7 @@ resource "aws_route53_record" "mongodb" {
   for_each = local.nodes
 
   zone_id = var.zone_id
-  name    = each.value.hostname
+  name    = each.value.fqdn
   type    = "A"
   ttl     = "300"
   records = [aws_instance.mongodb[each.key].private_ip]
@@ -249,7 +249,7 @@ resource "aws_route53_record" "mongodb_srv_rs" {
   name    = "_mongodb._tcp.${each.value.name}"
   type    = "SRV"
   ttl     = "300"
-  records = [ for o in each.value.nodes : "0 0 ${o.mongod_port} ${o.hostname}"]
+  records = [ for o in each.value.nodes : "0 0 ${o.mongod_port} ${o.fqdn}"]
 }
 
 //resource "aws_route53_record" "mongodb_txt_rs" {
@@ -259,7 +259,7 @@ resource "aws_route53_record" "mongodb_srv_rs" {
 //  name    = "_mongodb._tcp.${each.value.name}"
 //  type    = "SRV"
 //  ttl     = "300"
-//  records = [ for o in each.value.nodes : "0 0 ${o.mongod_port} ${o.hostname}"]
+//  records = [ for o in each.value.nodes : "0 0 ${o.mongod_port} ${o.fqdn}"]
 //}
 
 resource "aws_route53_record" "mongodb_srv_router" {
@@ -269,5 +269,5 @@ resource "aws_route53_record" "mongodb_srv_router" {
   name    = "_mongodb._tcp.${var.name}"
   type    = "SRV"
   ttl     = "300"
-  records = [ for node in local.nodes : "0 0 ${node.mongos_port} ${node.hostname}" if node.mongos_port != null ]
+  records = [ for node in local.nodes : "0 0 ${node.mongos_port} ${node.fqdn}" if node.mongos_port != null ]
 }
