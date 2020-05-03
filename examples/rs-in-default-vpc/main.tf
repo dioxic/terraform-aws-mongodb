@@ -1,10 +1,10 @@
 data "aws_ami" "base" {
   most_recent = true
-  owners      = ["${var.ami_owner}"]
+  owners      = [var.ami_owner]
 
   filter {
     name   = "name"
-    values = ["${var.ami_name}"]
+    values = [var.ami_name]
   }
 
   filter {
@@ -51,4 +51,5 @@ module "replicaset" {
     name                          = var.name
     ssh_key_name                  = var.ssh_key_name
     tags                          = var.tags
+    data_replica_sets             = var.data_replica_sets
 }

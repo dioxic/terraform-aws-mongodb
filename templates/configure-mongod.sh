@@ -116,7 +116,7 @@ configure_os_settings() {
 configure_mongod() {
 	echo "Configuring mongod.conf"
 
-	cat > /etc/mongod.conf << 'EOF'
+	cat > /etc/mongod.config.tmpl << 'EOF'
 ${mongod_conf}
 EOF
 

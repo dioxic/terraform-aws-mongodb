@@ -52,15 +52,17 @@ locals {
 
   nodes            = { for o in concat(local.shards,local.csrs,local.routers) : o.key => o }
 
-  router_nodes     = [ for o in local.nodes : o if o.mongos_port != -1 ]
+  #router_nodes     = [ for o in local.nodes : o if o.mongos_port != -1 ]
   router_hosts     = [ for o in local.nodes : join(":",o.hostname,o.mongos_port) if o.mongos_port != -1 ]
   router_uri       = format("mongodb://%s", join(",",slice(local.router_hosts, 0, min(3, length(local.router_hosts)))))
 
   replica_sets     = {
-    for rs in distinct([for o in local.nodes : lookup(o, "rs")]) : rs => {
-      hosts      = [ for o in local.nodes : format("%s:%d", o.hostname, o.mongod_port) if o.rs == rs ]
-      hosts_csv  = join(",", [for o in local.nodes : format("%s:%d", o.hostname, o.mongod_port) if o.rs == rs])
-      cfg        = jsonencode({
+    for rs in distinct([for o in local.nodes : o.rs]) : rs => {
+      name           = rs
+      hosts          = [ for o in local.nodes : format("%s:%d", o.hostname, o.mongod_port) if o.rs == rs ]
+      hosts_csv      = join(",", [for o in local.nodes : format("%s:%d", o.hostname, o.mongod_port) if o.rs == rs])
+      isConfigServer = [ for o in local.nodes : o.isConfigServer if o.rs == rs ]
+      cfg            = jsonencode({
         _id = rs
         members: [
           for o in local.nodes : {
@@ -72,14 +74,16 @@ locals {
     }
   }
 
+  csrs_replica_set = var.sharded ? [ for o in local.replica_sets : o if o.isConfigServer == true ][0] : {}
+
   mongodb_internal_ingess = distinct(concat(
     [ for o in local.shards : {
-        port        = lookup(o, "mongod_port")
+        port        = o.mongod_port
         description = "MongoDB shard server"
       } if var.sharded
     ],
     [ for o in local.csrs : {
-        port        = lookup(o, "mongod_port")
+        port        = o.mongod_port
         description = "MongoDB config server port"
       }
     ]
@@ -87,14 +91,14 @@ locals {
 
   mongodb_external_ingess = distinct(concat(
     [ for o in local.shards : {
-        port        = lookup(o, "mongod_port")
+        port        = o.mongod_port
         description = "MongoDB replicaset port"
       } if !var.sharded
     ],
     [ for o in local.shards : {
-        port        = lookup(o, "mongos_port")
+        port        = o.mongos_port
         description = "MongoDB router port"
-      } if lookup(o, "mongos_port") != -1
+      } if o.mongos_port != -1
     ]
   ))
 
@@ -200,51 +204,51 @@ resource "aws_instance" "mongodb" {
     var.tags
   )
 
-  user_data              = <<EOF
-${templatefile("${path.module}/templates/common.sh.tpl", {
-    mongodb_version       = var.mongodb_version
-    mongodb_community     = var.mongodb_community
-	  hostname              = each.value.hostname
-    mongo_uri             = local.mongo_uri
-})}
-set_hostname
-install_repo
-install_packages
-${each.value.mongod_port != -1  ? templatefile("${path.module}/templates/configure-mongod.sh.tpl", {
-    db_path               = local.db_path
-    rs_name               = each.value.rs
-    rs_config             = local.replica_sets[each.value.rs].cfg
-    rs_hosts              = local.replica_sets[each.value.rs].hosts
-    rs_hosts_csv          = local.replica_sets[each.value.rs].hosts_csv
-    rs_uri                = "mongodb://${local.replica_sets[each.value.rs].hosts_csv}/?ssl=${var.enable_ssl}&replicaSet=${each.value.rs}"
-    shard_name            = format("shard%d", each.value.shard)
-    data_block_device     = local.data_block_device
-    mount_point           = var.data_mount_point
-    router_uri            = local.router_uri
-    mongod_port           = each.value.mongod_port
-    mongod_conf           = templatefile("${path.module}/templates/mongod.conf.tpl", {
-      replSetName = each.value.rs
-      clusterRole = each.value.isConfigServer ? "configsvr" : var.sharded ? "shardsvr" : ""
-      hostname    = each.value.hostname
-      port        = each.value.mongod_port
-      mongod_conf = var.mongod_conf
-      db_path     = local.db_path
-    })
-}) : ""}
-${each.value.member == 0 ? "initiate_replica_set" : "" }
-${each.value.mongos_port != -1 ? templatefile("${path.module}/templates/configure-mongos.sh.tpl", {
-    mongos_service        = file("${path.module}/templates/mongos.service.tpl")
+  user_data              = <<-EOF
+    ${templatefile("${path.module}/templates/common.sh", {
+        mongodb_version       = var.mongodb_version
+        mongodb_community     = var.mongodb_community
+        hostname              = each.value.hostname
+        mongo_uri             = local.mongo_uri
+    })}
+    set_hostname
+    install_repo
+    install_packages
+    ${each.value.mongod_port != -1  ? templatefile("${path.module}/templates/configure-mongod.sh", {
+        db_path               = local.db_path
+        rs_name               = each.value.rs
+        rs_config             = local.replica_sets[each.value.rs].cfg
+        rs_hosts              = local.replica_sets[each.value.rs].hosts
+        rs_hosts_csv          = local.replica_sets[each.value.rs].hosts_csv
+        rs_uri                = "mongodb://${local.replica_sets[each.value.rs].hosts_csv}/?ssl=${var.enable_ssl}&replicaSet=${each.value.rs}"
+        shard_name            = format("shard%d", each.value.shard)
+        data_block_device     = local.data_block_device
+        mount_point           = var.data_mount_point
+        router_uri            = local.router_uri
+        mongod_port           = each.value.mongod_port
+        mongod_conf           = templatefile("${path.module}/templates/mongod.config", {
+          replSetName = each.value.rs
+          clusterRole = each.value.isConfigServer ? "configsvr" : var.sharded ? "shardsvr" : ""
+          hostname    = each.value.hostname
+          port        = each.value.mongod_port
+          mongod_conf = var.mongod_conf
+          db_path     = local.db_path
+        })
+    }) : ""}
+    ${each.value.member == 0 ? "initiate_replica_set" : "" }
+    ${each.value.mongos_port != -1 ? templatefile("${path.module}/templates/configure-mongos.sh", {
+        mongos_service        = file("${path.module}/templates/mongos.service.tpl")
 
-    mongos_conf           = templatefile("${path.module}/templates/mongos.conf.tpl", {
-      csrs_name         = local.csrs[0].rs
-      csrs_hosts        = join(",",[ for o in local.csrs : format("%s:%d", lookup(o, "hostname"), lookup(o, "mongod_port")) ])
-      hostname          = each.value.hostname
-      port              = each.value.mongos_port
-      mongos_conf       = var.mongos_conf
-    })
-}) : ""}
-${each.value.member == 0 && var.sharded && !each.value.isConfigServer ? "add_shard" : ""}
-EOF
+        mongos_conf           = templatefile("${path.module}/templates/mongos.config", {
+          csrs_name         = local.csrs_replica_set.name
+          csrs_hosts        = local.csrs_replica_set.hosts_csv
+          hostname          = each.value.hostname
+          port              = each.value.mongos_port
+          mongos_conf       = var.mongos_conf
+        })
+    }) : ""}
+    ${each.value.member == 0 && var.sharded && !each.value.isConfigServer ? "add_shard" : ""}
+  EOF
 }
 
 resource "aws_route53_record" "mongodb" {

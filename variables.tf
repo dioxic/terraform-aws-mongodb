@@ -57,6 +57,43 @@ variable "mongos_count" {
   default = -1
 }
 
+variable "data_replica_sets" {
+  description = "Replica set configuration for data"
+  type        = list(object({
+    name  = string
+    nodes = list(object({
+      name          = string
+      priority      = number
+      votes         = number
+      hidden        = bool
+      isArbiter     = bool
+      mongod_port   = number
+      mongos_port   = number
+      image_id      = string
+      instance_type = string
+    }))
+  }))
+}
+
+variable "config_replica_sets" {
+  description = "Replica set configuration for config server"
+  type        = object({
+    name  = string
+    nodes = list(object({
+      name          = string
+      priority      = number
+      votes         = number
+      hidden        = bool
+      isArbiter     = bool
+      mongod_port   = number
+      mongos_port   = number
+      image_id      = string
+      instance_type = string
+    }))
+  })
+  default     = null
+}
+
 variable "image_id" {
   description = "Machine image for mongodb server hosts. Required."
 }

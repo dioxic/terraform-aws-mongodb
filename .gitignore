@@ -8,6 +8,10 @@
 # .tfvars files
 *.tfvars
 
+# IDEA
+
+**/.idea
+
 # Crash log files
 crash.log
 

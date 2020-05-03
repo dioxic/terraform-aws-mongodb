@@ -22,6 +22,10 @@ output "mongodb_security_group_id" {
   value = module.replicaset.mongodb_security_group_id
 }
 
+output "nodes" {
+  value = module.replicaset.nodes
+}
+
 output "ssh_key_name" {
   value = var.ssh_key_name
 }
@@ -34,6 +38,6 @@ output "tags" {
   value = var.tags
 }
 
-output "nodes" {
-  value = module.replicaset.nodes
+output "data_replica_sets" {
+  value = var.data_replica_sets
 }
