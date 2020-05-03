@@ -22,8 +22,12 @@ data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnet_ids" "main" {
+data "aws_subnet_ids" "default" {
   vpc_id = data.aws_vpc.default.id
+  filter {
+    name   = "default-for-az"
+    values = ["true"]
+  }
 }
 
 resource "aws_route53_zone" "main" {
@@ -36,20 +40,29 @@ resource "aws_route53_zone" "main" {
   tags = var.tags
 }
 
+module "config" {
+  source = "github.com/dioxic/terraform-aws-mongodb-config"
+
+  sharded                       = false
+  shard_count                   = 2
+  member_count                  = 3
+  domain_name                   = var.domain_name
+  image_id                      = data.aws_ami.base.image_id
+  name                          = var.name
+}
+
 module "replicaset" {
     source = "../../"
 
-    zone_domain                   = var.domain_name
+    domain_name                   = var.domain_name
     mongodb_version               = var.mongodb_version
-    sharded                       = false
-    member_count                  = 3
     zone_id                       = aws_route53_zone.main.zone_id
-    subnet_ids                    = data.aws_subnet_ids.main.ids
+    subnet_ids                    = data.aws_subnet_ids.default.ids
     vpc_id                        = data.aws_vpc.default.id
-    image_id                      = data.aws_ami.base.id
-    data_block_device_volume_size = 10
     name                          = var.name
     ssh_key_name                  = var.ssh_key_name
     tags                          = var.tags
-    data_replica_sets             = var.data_replica_sets
+    router_nodes                  = module.config.router_nodes
+    config_replica_set            = module.config.config_replica_set
+    data_replica_sets             = module.config.data_replica_sets
 }

@@ -7,11 +7,11 @@
 configure_mongos() {
 	echo "Configuring mongos.conf"
 
-	cat > /etc/mongos.config << 'EOF'
+	cat > /etc/mongos.conf << 'EOF'
 ${mongos_conf}
 EOF
 
-	cat > /usr/lib/systemd/system/mongos.service.tpl << 'EOF'
+	cat > /usr/lib/systemd/system/mongos.service << 'EOF'
 ${mongos_service}
 EOF
 

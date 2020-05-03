@@ -29,21 +29,3 @@ variable "ami_owner" {
 variable "ami_name" {
 	default = "amzn2-ami-hvm-*-x86_64-gp2"
 }
-
-variable "data_replica_sets" {
-	description = "Replica set configuration for data"
-	type        = list(object({
-		name  = string
-		nodes = list(object({
-			name          = string
-			priority      = number
-			votes         = number
-			hidden        = bool
-			isArbiter     = bool
-			mongod_port   = number
-			mongos_port   = number
-			image_id      = string
-			instance_type = string
-		}))
-	}))
-}

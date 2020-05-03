@@ -26,6 +26,10 @@ output "nodes" {
   value = module.replicaset.nodes
 }
 
+output "data_replica_sets" {
+  value = module.config.data_replica_sets
+}
+
 output "ssh_key_name" {
   value = var.ssh_key_name
 }
@@ -36,8 +40,4 @@ output "zone_id" {
 
 output "tags" {
   value = var.tags
-}
-
-output "data_replica_sets" {
-  value = var.data_replica_sets
 }

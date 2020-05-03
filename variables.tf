@@ -1,5 +1,5 @@
-variable "zone_domain" {
-  description = "The hosted zone domain."
+variable "domain_name" {
+  description = "The domain name."
   default     = ""
 }
 
@@ -8,142 +8,67 @@ variable "name" {
   default     = ""
 }
 
-variable "config_mongod_port" {
-  description = "mongod port for config server, defaults to `27019`"
-  type        = number
-  default     = 27019
-}
-
-variable "sharded_mongod_port" {
-  description = "mongod port with sharded topology, defaults to `27018`"
-  type        = number
-  default     = 27018
-}
-
-variable "mongod_port" {
-  description = "mongod port with unsharded topology, defaults to `27017`"
-  type        = number
-  default     = 27017
-}
-
-variable "mongos_port" {
-  description = "mongos port, defaults to `27017`"
-  type        = number
-  default     = 27017
-}
-
-variable "shard_count" {
-  type    = number
-  default = 1
-}
-
-variable "member_count" {
-  type    = number
-  default = 3
-}
-
-variable "sharded" {
-  type    = bool
-  default = false
-}
-
-variable "cohost_mongos" {
-  type    = bool
-  default = true
-}
-
-variable "mongos_count" {
-  type    = number
-  default = -1
-}
-
 variable "data_replica_sets" {
   description = "Replica set configuration for data"
   type        = list(object({
     name  = string
     nodes = list(object({
-      name          = string
-      priority      = number
-      votes         = number
+      arbiter_only  = bool
       hidden        = bool
-      isArbiter     = bool
-      mongod_port   = number
-      mongos_port   = number
+      hostname      = string
       image_id      = string
       instance_type = string
+      mongod_port   = number
+      mongos_port   = number
+      name          = string
+      priority      = number
+      volume_iops   = number
+      volume_size   = number
+      volume_type   = string
+      votes         = number
     }))
   }))
 }
 
-variable "config_replica_sets" {
+variable "config_replica_set" {
   description = "Replica set configuration for config server"
   type        = object({
     name  = string
     nodes = list(object({
-      name          = string
-      priority      = number
-      votes         = number
+      arbiter_only  = bool
       hidden        = bool
-      isArbiter     = bool
-      mongod_port   = number
-      mongos_port   = number
+      hostname      = string
       image_id      = string
       instance_type = string
+      mongod_port   = number
+      name          = string
+      priority      = number
+      volume_iops   = number
+      volume_size   = number
+      volume_type   = string
+      votes         = number
     }))
   })
   default     = null
 }
 
-variable "image_id" {
-  description = "Machine image for mongodb server hosts. Required."
+variable "router_nodes" {
+  description = "Standalone router node configuration"
+  type        = list(object({
+    name          = string
+    hostname      = string
+    image_id      = string
+    instance_type = string
+    mongos_port   = number
+  }))
 }
 
-variable "config_image_id" {
-  description = "Machine image for config server hosts, defaults to `image_id`"
-  default     = ""
-}
-
-variable "router_image_id" {
-  description = "Machine image for router server hosts, defaults to `image_id`"
-  default     = ""
-}
-
-variable "instance_type" {
-  description = "AWS instance type for mongodb host (e.g. m4.large), defaults to \"t2.micro\"."
-  default     = "t2.micro"
-}
-
-variable "config_instance_type" {
-  description = "AWS instance type for config server host (e.g. m4.large), defaults to `instance_type`"
-  default     = ""
-}
-
-variable "router_instance_type" {
-  description = "AWS instance type for router server host (e.g. m4.large), defaults to `instance_type`."
-  default     = ""
-}
-
-variable "data_block_device_name" {
+variable "ebs_block_device_name" {
     description = "Block device name for data, default \"xvdb\""
     default     = "xvdb"
 }
 
-variable "data_block_device_volume_type" {
-    description = "Volume type for data device , default \"gp2\""
-    default     = "gp2"
-}
-
-variable "data_block_device_iops" {
-    description = "IOPS for data device, if using io1 volume type."
-    default     = -1
-}
-
-variable "data_block_device_volume_size" {
-    description = "Volume size (GB) for data device."
-    type        = number
-}
-
-variable "data_mount_point" {
+variable "ebs_block_device_mount_point" {
   description = "MongoDB data mount point, default \"/data\""
   default     = "/data"
 }
