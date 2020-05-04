@@ -51,6 +51,57 @@ locals {
 
   nodes = { for node in concat(local.rs_nodes, local.parsed_router_nodes) : node.name => merge(local.default_node, node) }
 
+  user_data = { for node in local.nodes : node.name => concat(
+    [{
+      filename = "base-init.cfg"
+      content_type = "text/cloud-config"
+      content = templatefile("${path.module}/templates/cloud-init-base.yaml", {
+        mongodb_package = var.mongodb_community ? "mongodb-org" : "mongodb-enterprise"
+        mongodb_version = var.mongodb_version
+        repo_url        = var.mongodb_community ? "repo.mongodb.org" : "repo.mongodb.com"
+        fqdn = node.fqdn
+        disable_thp_service = base64encode(file("${path.module}/scripts/disable-thp.service"))
+        mongodb_nproc = base64encode(file("${path.module}/scripts/99-mongodb-nproc.conf"))
+      })
+    }],
+    node.mongod_port != null ? [{
+      filename = "mongod-init.cfg"
+      content_type = "text/cloud-config"
+      content = templatefile("${path.module}/templates/cloud-init-mongod.yaml", {
+        data_block_device = var.ebs_block_device_name
+        mount_point = var.ebs_block_device_mount_point
+        db_path = local.db_path
+        readahead_service = base64encode(templatefile("${path.module}/templates/readahead.service", {
+          data_block_device = var.ebs_block_device_name
+        }))
+        mongod_conf = base64encode(templatefile("${path.module}/templates/mongod.conf", {
+          replSetName = node.rs_name
+          clusterRole = local.replica_sets[node.rs_name].is_config_rs ? "configsvr" : local.sharded ? "shardsvr" : ""
+          fqdn        = node.fqdn
+          port        = node.mongod_port
+          mongod_conf = var.mongod_conf
+          db_path     = local.db_path
+        }))
+      })
+    }] : [],
+    node.mongos_port != null ? [{
+      filename = "mongos-init.cfg"
+      content_type = "text/cloud-config"
+      content = templatefile("${path.module}/templates/cloud-init-mongos.yaml", {
+        mongos_service = base64encode(file("${path.module}/scripts/mongos.service"))
+        mongos_conf    = base64encode(templatefile("${path.module}/templates/mongos.conf",{
+          csrs_name         = local.csrs_replica_set.name
+          csrs_hosts        = local.csrs_replica_set.hosts_csv
+          fqdn              = node.fqdn
+          port              = node.mongos_port
+          mongos_conf       = var.mongos_conf
+        }))
+      })
+    }] : []
+//    node.member == 0 ? "initiate_replica_set" : ""
+//    node.member == 0 && !local.replica_sets[each.value.rs_name].is_config_rs ? "add_shard" : ""
+  )}
+
   router_hosts     = [ for node in local.nodes : join(":", [node.fqdn, node.mongos_port]) if node.mongos_port != null ]
   router_uri       = format("mongodb://%s", join(",",slice(local.router_hosts, 0, min(3, length(local.router_hosts)))))
 
@@ -153,6 +204,23 @@ resource "aws_security_group_rule" "egress" {
   security_group_id = aws_security_group.mongodb.id
 }
 
+data "template_cloudinit_config" "config" {
+  for_each = local.user_data
+
+  gzip = true
+  base64_encode = true
+
+  dynamic "part" {
+    for_each = each.value
+    content {
+      filename     = part.value["filename"]
+      content_type = part.value["content_type"]
+      content      = part.value["content"]
+      merge_type   = "list(append)+dict(recurse_array)+str()"
+    }
+  }
+}
+
 resource "aws_instance" "mongodb" {
   for_each = local.nodes
 
@@ -184,51 +252,7 @@ resource "aws_instance" "mongodb" {
     var.tags
   )
 
-  user_data              = <<-EOF
-${templatefile("${path.module}/templates/common.sh", {
-    mongodb_version       = var.mongodb_version
-    mongodb_community     = var.mongodb_community
-    fqdn                  = each.value.fqdn
-    mongo_uri             = local.mongo_uri
-})}
-set_hostname
-install_repo
-install_packages
-${each.value.mongod_port != null  ? templatefile("${path.module}/templates/configure-mongod.sh", {
-    db_path               = local.db_path
-    rs_name               = each.value.rs_name
-    rs_config             = local.replica_sets[each.value.rs_name].cfg
-    rs_hosts              = local.replica_sets[each.value.rs_name].hosts
-    rs_hosts_csv          = local.replica_sets[each.value.rs_name].hosts_csv
-    rs_uri                = local.replica_sets[each.value.rs_name].uri
-    shard_name            = each.value.shard_name
-    data_block_device     = local.data_block_device
-    mount_point           = var.ebs_block_device_mount_point
-    router_uri            = local.router_uri
-    mongod_port           = each.value.mongod_port
-    mongod_conf           = templatefile("${path.module}/templates/mongod.config", {
-      replSetName = each.value.rs_name
-      clusterRole = local.replica_sets[each.value.rs_name].is_config_rs ? "configsvr" : local.sharded ? "shardsvr" : ""
-      fqdn        = each.value.fqdn
-      port        = each.value.mongod_port
-      mongod_conf = var.mongod_conf
-      db_path     = local.db_path
-    })
-}) : ""}
-${each.value.member == 0 ? "initiate_replica_set" : "" }
-${each.value.mongos_port != null ? templatefile("${path.module}/templates/configure-mongos.sh", {
-    mongos_service        = file("${path.module}/templates/mongos.service")
-
-    mongos_conf           = templatefile("${path.module}/templates/mongos.config", {
-      csrs_name         = local.csrs_replica_set.name
-      csrs_hosts        = local.csrs_replica_set.hosts_csv
-      fqdn              = each.value.fqdn
-      port              = each.value.mongos_port
-      mongos_conf       = var.mongos_conf
-    })
-}) : ""}
-${each.value.member == 0 && !local.replica_sets[each.value.rs_name].is_config_rs ? "add_shard" : ""}
-EOF
+  user_data = data.template_cloudinit_config.config[each.value.name].rendered
 }
 
 resource "aws_route53_record" "mongodb" {

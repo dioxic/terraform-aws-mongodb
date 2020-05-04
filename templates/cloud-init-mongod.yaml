@@ -1,0 +1,29 @@
+#cloud-config
+
+fs_setup:
+  - label: mongodata
+    filesystem: xfs
+    device: /dev/${data_block_device}
+    overwrite: false
+
+mounts:
+  - [ ${data_block_device}, ${mount_point}, "xfs", "defaults,nofail,noatime", "0", "2" ]
+
+write_files:
+  - encoding: b64
+    content: ${mongod_conf}
+    path: /etc/mongod.conf
+  - encoding: b64
+    content: ${readahead_service}
+    path: /etc/systemd/system/readahead.service
+
+runcmd:
+  - [ mount, -a ]
+  - [ mkdir, -p, ${db_path} ]
+  - [ chown, -R, "mongod:mongod", ${db_path} ]
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, readahead.service ]
+  - [ systemctl, start, readahead.service ]
+  - [ systemctl, start, mongod.service ]
+
+final_message: "mongod installed"

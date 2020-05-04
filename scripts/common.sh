@@ -49,9 +49,9 @@ wait_for_node() {
 set_hostname() {
 	echo "Setting hostname"
 
-	echo "`hostname -i`       ${hostname}" >> /etc/hosts
+	echo "`hostname -i`       $1" >> /etc/hosts
 
-	hostnamectl set-hostname ${hostname}
+	hostnamectl set-hostname $1
 
 	if test -f /etc/cloud/cloud.cfg; then
 		sed -i 's/^preserve_hostname:.*/preserve_hostname: true/' /etc/cloud/cloud.cfg
@@ -107,10 +107,11 @@ EOF
 #                                                       Packages
 # -------------------------------------------------------------------------------------------------------------------------------------
 
+# usage <mongodb version> <mongodb community true/false>
 install_repo() {
 	echo "Installing MongoDB repository setup"
 
-	mongodb_version=${mongodb_version}
+	mongodb_version=$1
 
 	# determine url based on os and arch
 	arch=`uname -m`
@@ -150,7 +151,7 @@ install_repo() {
 	distro_major_version=`echo "$distro_version" | sed 's/\..*//'`
 
 	###  Get distribution info
-	if ${mongodb_community}; then
+	if $2; then
 		mongodb_repo="repo.mongodb.org"
 		mongodb_package="mongodb-org"
 	else
@@ -208,11 +209,12 @@ install_repo() {
 	esac	
 }
 
+# usage <mongodb community true/false>
 install_packages() {
 	echo "Installing packages"
 
 	###	Get mongodb package
-	if ${mongodb_community}; then
+	if $1; then
 		mongodb_package="mongodb-org"
 	else
 		mongodb_package="mongodb-enterprise"

@@ -1,0 +1,35 @@
+#cloud-config
+
+yum_repos:
+  ${mongodb_package}-${mongodb_version}:
+    name: MongoDB Repository
+    baseurl: https://${repo_url}/yum/amazon/2/${mongodb_package}/${mongodb_version}/$basearch/
+    enabled: true
+    gpgcheck: true
+    gpgkey: https://www.mongodb.org/static/pgp/server-${mongodb_version}.asc
+
+package_update: true
+packages:
+  - jq
+  - ${mongodb_package}
+
+fqdn: ${fqdn}
+preserve_hostname: false
+
+write_files:
+  - content: |
+      vm.swappiness=1
+      vm.zone_reclaim_mode=0
+    path: /etc/sysctl.d/90-mongod.conf
+  - encoding: b64
+    content: ${disable_thp_service}
+    path: /etc/systemd/system/disable-thp.service
+  - encoding: b64
+    content: ${mongodb_nproc}
+    path: /etc/security/limits.d/99-mongodb-nproc.conf
+
+runcmd:
+  - [ sysctl, -p, /etc/sysctl.d/90-mongod.conf ]
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, disable-thp.service ]
+  - [ systemctl, start, disable-thp.service ]

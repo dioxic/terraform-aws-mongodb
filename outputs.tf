@@ -15,7 +15,7 @@ output "mongodb_private_ip" {
 }
 
 output "mongodb_hostnames" {
-  value = [for o in local.nodes: o.hostname]
+  value = [for o in local.nodes: o.fqdn]
 }
 
 output "nodes" {

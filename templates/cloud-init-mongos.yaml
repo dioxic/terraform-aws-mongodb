@@ -1,0 +1,16 @@
+#cloud-config
+
+write_files:
+  - encoding: b64
+    content: ${mongos_conf}
+    path: /etc/mongos.conf
+  - encoding: b64
+    content: ${mongos_service}
+    path: /usr/lib/systemd/system/mongos.service
+
+runcmd:
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, mongos.service ]
+  - [ systemctl, start, mongos.service ]
+
+final_message: "mongod installed"

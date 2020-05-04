@@ -1,0 +1,9 @@
+[Unit]
+Description=Set readahead for MongoDB block device
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c "blockdev --setra 8  /dev/${data_block_device}"
+
+[Install]
+WantedBy=multi-user.target
