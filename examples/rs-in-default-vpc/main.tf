@@ -43,17 +43,17 @@ resource "aws_route53_zone" "main" {
 module "config" {
   source = "github.com/dioxic/terraform-aws-mongodb-config"
 
-  sharded                       = false
-  shard_count                   = 2
+  sharded                       = true
+  shard_count                   = 1
   member_count                  = 3
   domain_name                   = var.domain_name
   image_id                      = data.aws_ami.base.image_id
+  instance_type                 = "t3.micro"
   name                          = var.name
 }
 
 module "replicaset" {
     source = "../../"
-
     domain_name                   = var.domain_name
     mongodb_version               = var.mongodb_version
     zone_id                       = aws_route53_zone.main.zone_id

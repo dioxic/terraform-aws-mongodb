@@ -27,9 +27,15 @@ write_files:
   - encoding: b64
     content: ${mongodb_nproc}
     path: /etc/security/limits.d/99-mongodb-nproc.conf
+  - encoding: b64
+    content: ${bootstrap}
+    path: ${bootstrap_path}
+    permissions: '0700'
 
 runcmd:
   - [ sysctl, -p, /etc/sysctl.d/90-mongod.conf ]
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, disable-thp.service ]
   - [ systemctl, start, disable-thp.service ]
+
+final_message: "Cloud Init complete!"

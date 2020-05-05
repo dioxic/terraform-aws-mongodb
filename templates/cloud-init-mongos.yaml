@@ -12,5 +12,3 @@ runcmd:
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, mongos.service ]
   - [ systemctl, start, mongos.service ]
-
-final_message: "mongod installed"

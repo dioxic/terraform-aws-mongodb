@@ -8,10 +8,17 @@ variable "name" {
   default     = ""
 }
 
+variable "create" {
+  description = "Create resources, default `true`"
+  type        = bool
+  default     = true
+}
+
 variable "data_replica_sets" {
   description = "Replica set configuration for data"
   type        = list(object({
     name  = string
+    shard_name    = string
     nodes = list(object({
       arbiter_only  = bool
       hidden        = bool

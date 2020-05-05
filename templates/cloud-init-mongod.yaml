@@ -24,6 +24,8 @@ runcmd:
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, readahead.service ]
   - [ systemctl, start, readahead.service ]
+  - [ sh, -c, ${bootstrap_path} wait network ]
+  - [ sh, -c, ${bootstrap_path} wait dns local ]
   - [ systemctl, start, mongod.service ]
-
-final_message: "mongod installed"
+  - ${bootstrap_path} ${initiate_cmd}
+  - ${bootstrap_path} ${add_shard_cmd}
