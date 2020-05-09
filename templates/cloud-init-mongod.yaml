@@ -27,5 +27,9 @@ runcmd:
   - [ sh, -c, ${bootstrap_path} wait network ]
   - [ sh, -c, ${bootstrap_path} wait dns local ]
   - [ systemctl, start, mongod.service ]
-  - ${bootstrap_path} ${initiate_cmd}
-  - ${bootstrap_path} ${add_shard_cmd}
+%{ if initiate ~}
+  - ${bootstrap_path} initiate '${fqdn}:${port}' '${jsonencode(rs_config)}'
+%{ endif ~}
+%{ if add_shard ~}
+  - ${bootstrap_path} add_shard '${router_uri}' '${rs_name}' '${join(",", rs_hosts)}' '${shard_name}'
+%{ endif ~}

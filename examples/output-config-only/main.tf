@@ -3,9 +3,11 @@ module "config" {
   source = "github.com/dioxic/terraform-aws-mongodb-config"
 
   sharded                       = true
+  cohost_routers                = false
   shard_count                   = 1
-  member_count                  = 3
-  domain_name                   = var.domain_name
+  member_count                  = 5
+  config_member_count           = 3
+  router_count                  = 2
   image_id                      = "ami-06ce3edf0cff21f07"
   instance_type                 = "t3.micro"
   name                          = var.name
@@ -14,20 +16,33 @@ module "config" {
 module "replicaset" {
     source = "../../"
     create                        = false
-    domain_name                   = var.domain_name
+    domain_name                   = "example.internal"
     mongodb_version               = var.mongodb_version
     subnet_ids                    = ["subnet-1a", "subnet-2b", "subnet-3c"]
     vpc_id                        = "vpc-12345678"
-    name                          = var.name
+    cluster_name                  = var.name
     ssh_key_name                  = "mykey"
     router_nodes                  = module.config.router_nodes
-    config_replica_set            = module.config.config_replica_set
-    data_replica_sets             = module.config.data_replica_sets
+    replica_sets                  = module.config.replica_sets
 }
 
-resource "local_file" "foo" {
+resource "local_file" "cloud-init" {
   for_each    = module.replicaset.cloudinit_config
 
   content     = each.value.rendered
-  filename = "${path.module}/out/${each.key}.cfg"
+  filename = "${path.module}/out/${each.key}_cloud-init.yml"
+}
+
+resource "local_file" "mongod-conf" {
+  for_each    = module.replicaset.mongod_conf
+
+  content     = each.value
+  filename = "${path.module}/out/${each.key}_mongod.conf"
+}
+
+resource "local_file" "mongos-conf" {
+  for_each    = module.replicaset.mongos_conf
+
+  content     = each.value
+  filename = "${path.module}/out/${each.key}_mongos.conf"
 }

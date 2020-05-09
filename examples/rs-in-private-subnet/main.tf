@@ -11,11 +11,11 @@ locals {
 
 data "aws_ami" "base" {
   most_recent = true
-  owners      = ["${local.ami_owner}"]
+  owners      = [local.ami_owner]
 
   filter {
 	name   = "name"
-	values = ["${local.ami_name}"]
+	values = [local.ami_name]
   }
 
   filter {

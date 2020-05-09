@@ -1,11 +1,11 @@
 variable "domain_name" {
-  description = "The domain name."
-  default     = ""
+  description = "The domain name for the cluster. Ignored if `create_zone` is false."
+  default     = null
 }
 
-variable "name" {
-  description = "The node name."
-  default     = ""
+variable "cluster_name" {
+  description = "The cluster name. Required if `sharded`"
+  default     = null
 }
 
 variable "create" {
@@ -14,65 +14,60 @@ variable "create" {
   default     = true
 }
 
-variable "data_replica_sets" {
-  description = "Replica set configuration for data"
-  type        = list(object({
-    name  = string
-    shard_name    = string
-    nodes = list(object({
-      arbiter_only  = bool
-      hidden        = bool
-      fqdn          = string
-      image_id      = string
-      instance_type = string
-      mongod_port   = number
-      mongos_port   = number
-      name          = string
-      priority      = number
-      volume_iops   = number
-      volume_size   = number
-      volume_type   = string
-      votes         = number
-    }))
-  }))
+variable "create_zone" {
+  description = "Creates private hosted zone with name `domain_name` in the `vpc_id`."
+  type        = bool
+  default     = false
 }
 
-variable "config_replica_set" {
-  description = "Replica set configuration for config server"
-  type        = object({
-    name  = string
-    nodes = list(object({
-      arbiter_only  = bool
-      hidden        = bool
-      fqdn          = string
-      image_id      = string
-      instance_type = string
-      mongod_port   = number
-      name          = string
-      priority      = number
-      volume_iops   = number
-      volume_size   = number
-      volume_type   = string
-      votes         = number
+variable "create_zone_records" {
+  description = "Create route53 zone records for MongoDB. `create_zone` must be true or `zone_id` must be provided."
+  type        = bool
+  default     = false
+}
+
+variable "create_security_group" {
+  description = "Creates a security group for MongoDB, defaults to `true`"
+  type        = bool
+  default     = true
+}
+
+variable "replica_sets" {
+  description = "Replica set configuration for data"
+  type        = map(object({
+    shard_name       = string
+    config_server    = bool
+    members          = list(object({
+      arbiter_only     = bool
+      hidden           = bool
+      image_id         = string
+      instance_type    = string
+      mongod_port      = number
+      mongos_port      = number
+      name             = string
+      priority         = number
+      volume_iops      = number
+      volume_size      = number
+      volume_type      = string
+      votes            = number
     }))
-  })
-  default     = null
+  }))
 }
 
 variable "router_nodes" {
   description = "Standalone router node configuration"
   type        = list(object({
     name          = string
-    fqdn          = string
     image_id      = string
     instance_type = string
     mongos_port   = number
   }))
+  default = []
 }
 
 variable "ebs_block_device_name" {
-    description = "Block device name for data, default \"xvdb\""
-    default     = "xvdb"
+  description = "Block device name for data, default \"xvdb\""
+  default     = "xvdb"
 }
 
 variable "ebs_block_device_mount_point" {
@@ -95,10 +90,10 @@ variable "mongodb_version" {
   default     = "4.2"
 }
 
-variable "mongodb_community" {
-  description = "MongoDB community version, defaults to `true`."
+variable "enterprise_binaries" {
+  description = "MongoDB Enterprise version, defaults to `false`."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "enable_ssl" {
@@ -109,7 +104,6 @@ variable "enable_ssl" {
 
 variable "vpc_id" {
   description = "VPC ID to provision mongodb. Required."
-  default     = ""
 }
 
 variable "subnet_ids" {
@@ -119,35 +113,47 @@ variable "subnet_ids" {
 }
 
 variable "zone_id" {
-  description = "Existing route53 private host zone id"
-  default     = ""
+  description = "Existing route53 private host zone id."
+  default     = null
 }
 
 variable "user_data" {
   description = "user_data script to pass in at runtime."
-  default     = ""
+  default     = null
 }
 
 variable "ssh_key_name" {
   description = "AWS key name you will use to access the MongoDB host instance(s). Required."
-  default     = ""
 }
 
 variable "vpc_security_group_ids" {
-  description = "VPC security group ids to apply to the EC2 instance. Required."
+  description = "VPC security group ids to apply to the EC2 instance."
   type        = list(string)
   default     = []
 }
 
-variable "vpc_ssh_security_group_id" {
-  description = "VPC security group id to allow SSH access to the EC2 instances. Required."
-  default     = ""
+variable "ssh_ingress_with_security_group_ids" {
+  description = "List of security group ids allowed to ingress on SSH port."
+  type        = list(string)
+  default     = []
 }
 
-variable "ssh_from_security_group_only" {
-  description = "only allow the specified security group to SSH to mongo hosts. Set true if `vpc_ssh_security_group_id` is provided."
-  type        = bool
-  default     = false
+variable "ssh_ingress_with_cidr_blocks" {
+  description = "List of CIDRs allowed to ingress on SSH port. Defaults to [\"0.0.0.0/0\"]."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "mongo_ingress_with_security_group_ids" {
+  description = "List of security group ids allowed to ingress on MongoDB port(s)."
+  type        = list(string)
+  default     = []
+}
+
+variable "mongo_ingress_with_cidr_blocks" {
+  description = "List of CIDRs allowed to ingress on MongoDB port(s). Defaults to [\"0.0.0.0/0\"]."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
 }
 
 variable "tags" {

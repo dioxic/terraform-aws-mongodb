@@ -30,23 +30,13 @@ data "aws_subnet_ids" "default" {
   }
 }
 
-resource "aws_route53_zone" "main" {
-  name = var.domain_name
-
-  vpc {
-    vpc_id = data.aws_vpc.default.id
-  }
-
-  tags = var.tags
-}
-
 module "config" {
   source = "github.com/dioxic/terraform-aws-mongodb-config"
 
   sharded                       = true
-  shard_count                   = 1
-  member_count                  = 3
-  domain_name                   = var.domain_name
+  shard_count                   = 2
+  member_count                  = 5
+  config_member_count           = 3
   image_id                      = data.aws_ami.base.image_id
   instance_type                 = "t3.micro"
   name                          = var.name
@@ -54,15 +44,14 @@ module "config" {
 
 module "replicaset" {
     source = "../../"
-    domain_name                   = var.domain_name
     mongodb_version               = var.mongodb_version
-    zone_id                       = aws_route53_zone.main.zone_id
+    create_zone                   = true
+    domain_name                   = var.domain_name
     subnet_ids                    = data.aws_subnet_ids.default.ids
     vpc_id                        = data.aws_vpc.default.id
-    name                          = var.name
+    cluster_name                  = var.name
     ssh_key_name                  = var.ssh_key_name
     tags                          = var.tags
     router_nodes                  = module.config.router_nodes
-    config_replica_set            = module.config.config_replica_set
-    data_replica_sets             = module.config.data_replica_sets
+    replica_sets                  = module.config.replica_sets
 }

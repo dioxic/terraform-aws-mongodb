@@ -14,10 +14,6 @@ output "nodes" {
   value = module.replicaset.nodes
 }
 
-output "data_replica_sets" {
-  value = module.config.data_replica_sets
-}
-
 output "replica_sets" {
   value = module.replicaset.replica_sets
 }
@@ -26,26 +22,14 @@ output "mongo_uri" {
   value = module.replicaset.mongo_uri
 }
 
-//output "user_data" {
-//  value = module.replicaset.user_data
-//}
+output "mongo_rs_uri" {
+  value = module.replicaset.mongo_rs_uri
+}
 
 output "sharded" {
   value = module.replicaset.sharded
 }
 
-output "router_uri" {
-  value = module.replicaset.router_uri
+output "security_group_ingress_rules" {
+  value = module.replicaset.security_group_ingress_rules
 }
-
-output "mongodb_internal_ingess" {
-  value = module.replicaset.mongodb_internal_ingess
-}
-
-output "mongodb_external_ingess" {
-  value = module.replicaset.mongodb_external_ingess
-}
-
-//output "cloudinit_config" {
-//  value = module.replicaset.cloudinit_config
-//}

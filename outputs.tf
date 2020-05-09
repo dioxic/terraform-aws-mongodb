@@ -27,7 +27,7 @@ output "replica_sets" {
 }
 
 output "mongo_uri" {
-  value = coalesce(local.mongo_cluster_uri, try(local.mongo_rs_uri[0], null))
+  value = coalesce(local.mongo_cluster_uri, local.mongo_rs_uri[0])
 }
 
 output "mongo_rs_uri" {
@@ -38,20 +38,24 @@ output "user_data" {
   value = local.user_data
 }
 
+output "mongod_conf" {
+  value = local.mongod_conf
+}
+
+output "mongos_conf" {
+  value = local.mongos_conf
+}
+
+output "domain_name" {
+  value = local.domain_name
+}
+
 output "sharded" {
   value = local.sharded
 }
 
-output "router_uri" {
-  value = local.router_uri
-}
-
-output "mongodb_internal_ingess" {
-  value = local.mongodb_internal_ingess
-}
-
-output "mongodb_external_ingess" {
-  value = local.mongodb_external_ingess
+output "security_group_ingress_rules" {
+  value = concat(local.ssh_ingress_self, local.ssh_ingress_cidr, local.ssh_ingress_sg, local.mongo_ingress_self, local.mongo_ingress_cidr, local.mongo_ingress_sg)
 }
 
 output "cloudinit_config" {
