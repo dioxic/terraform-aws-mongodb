@@ -1,6 +1,5 @@
 variable "domain_name" {
-  description = "The domain name for the cluster. Ignored if `create_zone` is false."
-  default     = null
+  description = "The domain name for the cluster. Required."
 }
 
 variable "cluster_name" {
@@ -109,7 +108,7 @@ variable "enable_ssl" {
 }
 
 variable "vpc_id" {
-  description = "VPC ID to provision mongodb. Required."
+  description = "VPC id to use. Required."
 }
 
 variable "subnet_ids" {
@@ -144,9 +143,9 @@ variable "ssh_ingress_with_security_group_ids" {
 }
 
 variable "ssh_ingress_with_cidr_blocks" {
-  description = "List of CIDRs allowed to ingress on SSH port, defaults to [\"0.0.0.0/0\"]."
+  description = "List of CIDRs allowed to ingress on SSH port, defaults to empty list."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "ssh_ingress_with_self" {

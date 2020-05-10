@@ -47,7 +47,7 @@ output "mongos_conf" {
 }
 
 output "domain_name" {
-  value = local.domain_name
+  value = var.domain_name
 }
 
 output "sharded" {

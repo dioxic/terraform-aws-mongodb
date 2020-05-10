@@ -8,21 +8,21 @@ locals {
   db_path                     = "${var.ebs_block_device_mount_point}/db"
 
   create_zone                 = var.create && var.create_zone
-  create_zone_records         = var.create && ( var.create_zone_records || var.create_zone)
+  create_zone_records         = var.create && (var.create_zone_records || var.create_zone)
   create_security_group       = var.create && var.create_security_group
-  create_security_group_rules = var.create && ( var.create_security_group_rules || var.create_security_group)
+  create_security_group_rules = var.create && (var.create_security_group_rules || var.create_security_group)
+
+  subnet_count = length(var.subnet_ids)
 
   zone_id           = local.create_zone ? aws_route53_zone.mongodb[0].id : var.zone_id
   security_group_id = local.create_security_group ? aws_security_group.mongodb[0].id : var.security_group_id
 
-  domain_name = try(substr(data.aws_route53_zone.mongodb[0].name, length(data.aws_route53_zone.mongodb[0].name) - 1), var.domain_name)
-
   rs_cfg = { for name,rs in var.replica_sets : name => {
       _id = name
       protocolVersion = 1
-      members: [for o in rs.members : {
-        _id = index(rs.members, o)
-        host = "${o.name}.${local.domain_name}:${o.mongod_port}"
+      members: [for i,o in rs.members : {
+        _id = i
+        host = "${o.name}.${var.domain_name}:${o.mongod_port}"
         votes = o.votes
         hidden = o.hidden
         priority = o.priority
@@ -32,9 +32,9 @@ locals {
   }
 
   rs_nodes = flatten([ for name,rs in var.replica_sets : [
-    for o in rs.members : {
+    for i,o in rs.members : {
       rs_name        = name
-      bootstrap      = index(rs.members, o) == 0
+      bootstrap      = i == 0
       name           = o.name
       arbiter        = o.arbiter_only
       mongod_port    = o.mongod_port
@@ -44,20 +44,14 @@ locals {
       volume_iops    = o.volume_iops
       volume_size    = o.volume_size
       volume_type    = o.volume_type
-      subnet_id      = element(
-        var.subnet_ids,
-        index(rs.members, o) % length(var.subnet_ids)
-      )
+      idx            = i
     }
   ]])
 
-  router_nodes = [ for node in var.router_nodes : merge(
+  router_nodes = [ for i,node in var.router_nodes : merge(
     node,
     {
-      subnet_id = element(
-        var.subnet_ids,
-        index(var.router_nodes, node) % length(var.subnet_ids)
-      )
+      idx = i
     })
   ]
 
@@ -67,9 +61,9 @@ locals {
       mongod_port = null
     },
     {
-      fqdn        = "${node.name}.${local.domain_name}"
-      mongod_host = try("${node.name}.${local.domain_name}:${node.mongod_port}", null)
-      mongos_host = try("${node.name}.${local.domain_name}:${node.mongos_port}", null)
+      fqdn        = "${node.name}.${var.domain_name}"
+      mongod_host = try("${node.name}.${var.domain_name}:${node.mongod_port}", null)
+      mongos_host = try("${node.name}.${var.domain_name}:${node.mongos_port}", null)
     },
     node)
   }
@@ -87,8 +81,8 @@ locals {
   router_hosts     = [ for node in local.nodes : join(":", [node.fqdn, node.mongos_port]) if node.mongos_port != null ]
   router_uri       = format("mongodb://%s", join(",",slice(local.router_hosts, 0, min(3, length(local.router_hosts)))))
 
-  mongo_cluster_uri = try("mongodb+srv://${var.cluster_name}.${local.domain_name}/?ssl=${var.enable_ssl}", null)
-  mongo_rs_uri      = [ for name,rs in local.replica_sets : "mongodb+srv://${name}.${local.domain_name}/?ssl=${var.enable_ssl}" ]
+  mongo_cluster_uri = local.sharded ? "mongodb+srv://${var.cluster_name}.${var.domain_name}/?ssl=${var.enable_ssl}" : null
+  mongo_rs_uri      = [ for name,rs in local.replica_sets : "mongodb+srv://${name}.${var.domain_name}/?ssl=${var.enable_ssl}" ]
 
   sharded          = length(local.router_hosts) > 0
 
@@ -179,24 +173,19 @@ locals {
     if length(var.mongo_ingress_with_cidr_blocks) > 0
   ]
   mongo_ingress_sg = flatten([ for o in local.mongo_ingress_ports :
-    [ for sg in var.mongo_ingress_with_security_group_ids : merge(o, { source_security_group_id = sg }) ]
+    [ for sg in var.mongo_ingress_with_security_group_ids : merge(o, { security_group = sg }) ]
   ])
 
   ssh_ingress_self  = var.ssh_ingress_with_self ? [ merge(local.ssh_ingress_ports, { self = true }) ] : []
   ssh_ingress_cidr  = length(var.ssh_ingress_with_cidr_blocks) > 0 ? [ merge(local.ssh_ingress_ports, { cidr_blocks = var.ssh_ingress_with_cidr_blocks }) ] : []
-  ssh_ingress_sg = [ for sg in var.ssh_ingress_with_security_group_ids : merge(local.ssh_ingress_ports, { source_security_group_id = sg }) ]
+  ssh_ingress_sg    = [ for sg in var.ssh_ingress_with_security_group_ids : merge(local.ssh_ingress_ports, { security_group = sg }) ]
 
-}
-
-data "aws_route53_zone" "mongodb" {
-  count   = var.create && !var.create_zone ? 1 : 0
-  zone_id = var.zone_id
 }
 
 resource "aws_security_group" "mongodb" {
   count = local.create_security_group ? 1 : 0
 
-  name_prefix = format("%s-%s", var.cluster_name, "mongodb-")
+  name_prefix = "${var.cluster_name}-mongodb-"
   vpc_id      = var.vpc_id
   description = "MongoDB security group"
 
@@ -209,7 +198,7 @@ resource "aws_security_group" "mongodb" {
 }
 
 resource "aws_security_group_rule" "ingress_with_security_group" {
-  for_each = { for rule in concat(local.ssh_ingress_sg, local.mongo_ingress_sg) : rule.description => rule if local.create_security_group_rules }
+  for_each = local.create_security_group_rules ? { for rule in concat(local.ssh_ingress_sg, local.mongo_ingress_sg) : rule.description => rule} : {}
 
   type                     = "ingress"
   from_port                = each.value.port
@@ -221,7 +210,7 @@ resource "aws_security_group_rule" "ingress_with_security_group" {
 }
 
 resource "aws_security_group_rule" "ingress_with_cidr" {
-  for_each = { for rule in concat(local.ssh_ingress_cidr, local.mongo_ingress_cidr) : rule.description => rule if local.create_security_group_rules }
+  for_each = local.create_security_group_rules ? { for rule in concat(local.ssh_ingress_cidr, local.mongo_ingress_cidr) : rule.description => rule } : {}
 
   type                     = "ingress"
   from_port                = each.value.port
@@ -233,7 +222,7 @@ resource "aws_security_group_rule" "ingress_with_cidr" {
 }
 
 resource "aws_security_group_rule" "ingress_with_self" {
-  for_each = { for rule in concat(local.ssh_ingress_self, local.mongo_ingress_self) : rule.description => rule if local.create_security_group_rules }
+  for_each = local.create_security_group_rules ? { for rule in concat(local.ssh_ingress_self, local.mongo_ingress_self) : rule.description => rule } : {}
 
   type                     = "ingress"
   from_port                = each.value.port
@@ -279,7 +268,10 @@ resource "aws_instance" "mongodb" {
   instance_type          = each.value.instance_type
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [ local.security_group_id ]
-  subnet_id              = each.value.subnet_id
+  subnet_id              = element(
+    var.subnet_ids,
+    each.value.idx % local.subnet_count
+  )
 
   root_block_device {
     volume_type = "gp2"
@@ -300,7 +292,7 @@ resource "aws_instance" "mongodb" {
     var.tags
   )
 
-  user_data = data.template_cloudinit_config.mongodb[each.value.name].rendered
+  user_data = data.template_cloudinit_config.mongodb[each.key].rendered
 }
 
 resource "aws_route53_zone" "mongodb" {

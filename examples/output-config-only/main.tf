@@ -14,16 +14,19 @@ module "config" {
 }
 
 module "replicaset" {
-    source = "../../"
-    create                        = false
-    domain_name                   = "example.internal"
-    mongodb_version               = var.mongodb_version
-    subnet_ids                    = ["subnet-1a", "subnet-2b", "subnet-3c"]
-    vpc_id                        = "vpc-12345678"
-    cluster_name                  = var.name
-    ssh_key_name                  = "mykey"
-    router_nodes                  = module.config.router_nodes
-    replica_sets                  = module.config.replica_sets
+  source = "../../"
+
+  create                                = false
+  domain_name                           = "example.internal"
+  mongodb_version                       = var.mongodb_version
+  subnet_ids                            = ["subnet-1a", "subnet-2b", "subnet-3c"]
+  vpc_id                                = "vpc-12345678"
+  cluster_name                          = var.name
+  ssh_key_name                          = "mykey"
+  router_nodes                          = module.config.router_nodes
+  replica_sets                          = module.config.replica_sets
+  ssh_ingress_with_cidr_blocks          = ["0.0.0.0/0"]
+  mongo_ingress_with_security_group_ids = ["sg-1234"]
 }
 
 resource "local_file" "cloud-init" {

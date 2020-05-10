@@ -29,7 +29,3 @@ output "bastion_security_group" {
 output "bastion_public_ip" {
   value = module.network.bastion_public_ip
 }
-
-output "nodes" {
-  value = module.replicaset.nodes
-}
