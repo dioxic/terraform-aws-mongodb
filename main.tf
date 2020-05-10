@@ -7,16 +7,13 @@ locals {
   data_block_device           = "/dev/${var.ebs_block_device_name}"
   db_path                     = "${var.ebs_block_device_mount_point}/db"
 
-  default_node = {
-    mongos_port = null,
-    mongod_port = null
-  }
+  create_zone                 = var.create && var.create_zone
+  create_zone_records         = var.create && ( var.create_zone_records || var.create_zone)
+  create_security_group       = var.create && var.create_security_group
+  create_security_group_rules = var.create && ( var.create_security_group_rules || var.create_security_group)
 
-  create_zone           = var.create && var.create_zone
-  create_zone_records   = var.create && ( var.create_zone_records || var.create_zone)
-  create_security_group = var.create && var.create_security_group
-
-  zone_id = var.create_zone ? aws_route53_zone.mongodb[0].id : var.zone_id
+  zone_id           = local.create_zone ? aws_route53_zone.mongodb[0].id : var.zone_id
+  security_group_id = local.create_security_group ? aws_security_group.mongodb[0].id : var.security_group_id
 
   domain_name = try(substr(data.aws_route53_zone.mongodb[0].name, length(data.aws_route53_zone.mongodb[0].name) - 1), var.domain_name)
 
@@ -57,7 +54,7 @@ locals {
   router_nodes = [ for node in var.router_nodes : merge(
     node,
     {
-      subnet_id      = element(
+      subnet_id = element(
         var.subnet_ids,
         index(var.router_nodes, node) % length(var.subnet_ids)
       )
@@ -65,13 +62,16 @@ locals {
   ]
 
   nodes = { for node in concat(local.rs_nodes, local.router_nodes) : node.name => merge(
-    local.default_node,
-    node,
+    {
+      mongos_port = null
+      mongod_port = null
+    },
     {
       fqdn        = "${node.name}.${local.domain_name}"
       mongod_host = try("${node.name}.${local.domain_name}:${node.mongod_port}", null)
       mongos_host = try("${node.name}.${local.domain_name}:${node.mongos_port}", null)
-    })
+    },
+    node)
   }
 
   replica_sets = { for name,rs in var.replica_sets : name => {
@@ -160,11 +160,11 @@ locals {
   mongo_ingress_ports = distinct(concat(
     [ for o in local.nodes : {
       port        = o.mongod_port
-      description = local.replica_sets[o.rs_name].config_server ? "MongoDB config server" : "MongoDB shard server"
+      description = local.replica_sets[o.rs_name].config_server ? "MongoDB Config Server" : local.sharded ? "MongoDB Shard" : "MongoDB Replica Set"
     } if o.mongod_port != null ],
     [ for o in local.nodes : {
       port        = o.mongos_port
-      description = "MongoDB router port"
+      description = "MongoDB Router"
     } if o.mongos_port != null ]
   ))
 
@@ -174,14 +174,17 @@ locals {
   }
 
   mongo_ingress_self  = [ for o in local.mongo_ingress_ports : merge(o, { self = true }) ]
-  mongo_ingress_cidr  = [ for o in local.mongo_ingress_ports : merge(o, { cidr_blocks = var.mongo_ingress_with_cidr_blocks }) ]
+  mongo_ingress_cidr  = [
+    for o in local.mongo_ingress_ports : merge(o, { cidr_blocks = var.mongo_ingress_with_cidr_blocks })
+    if length(var.mongo_ingress_with_cidr_blocks) > 0
+  ]
   mongo_ingress_sg = flatten([ for o in local.mongo_ingress_ports :
     [ for sg in var.mongo_ingress_with_security_group_ids : merge(o, { source_security_group_id = sg }) ]
   ])
 
-  ssh_ingress_self  = [ merge(local.ssh_ingress_ports, { self = true }) ]
-  ssh_ingress_cidr  = [ merge(local.ssh_ingress_ports, { cidr_blocks = var.ssh_ingress_with_cidr_blocks }) ]
-  ssh_ingress_sg = [ for sg in var.ssh_ingress_with_security_group_ids : merge(local.ssh_ingress_ports, { source_security_group_id = sg })]
+  ssh_ingress_self  = var.ssh_ingress_with_self ? [ merge(local.ssh_ingress_ports, { self = true }) ] : []
+  ssh_ingress_cidr  = length(var.ssh_ingress_with_cidr_blocks) > 0 ? [ merge(local.ssh_ingress_ports, { cidr_blocks = var.ssh_ingress_with_cidr_blocks }) ] : []
+  ssh_ingress_sg = [ for sg in var.ssh_ingress_with_security_group_ids : merge(local.ssh_ingress_ports, { source_security_group_id = sg }) ]
 
 }
 
@@ -206,7 +209,7 @@ resource "aws_security_group" "mongodb" {
 }
 
 resource "aws_security_group_rule" "ingress_with_security_group" {
-  for_each = { for rule in concat(local.ssh_ingress_sg, local.mongo_ingress_sg) : rule.description => rule if local.create_security_group }
+  for_each = { for rule in concat(local.ssh_ingress_sg, local.mongo_ingress_sg) : rule.description => rule if local.create_security_group_rules }
 
   type                     = "ingress"
   from_port                = each.value.port
@@ -214,11 +217,11 @@ resource "aws_security_group_rule" "ingress_with_security_group" {
   protocol                 = "tcp"
   description              = each.value.description
   source_security_group_id = each.value.security_group
-  security_group_id        = aws_security_group.mongodb[0].id
+  security_group_id        = local.security_group_id
 }
 
 resource "aws_security_group_rule" "ingress_with_cidr" {
-  for_each = { for rule in concat(local.ssh_ingress_cidr, local.mongo_ingress_cidr) : rule.description => rule if local.create_security_group }
+  for_each = { for rule in concat(local.ssh_ingress_cidr, local.mongo_ingress_cidr) : rule.description => rule if local.create_security_group_rules }
 
   type                     = "ingress"
   from_port                = each.value.port
@@ -226,11 +229,11 @@ resource "aws_security_group_rule" "ingress_with_cidr" {
   protocol                 = "tcp"
   description              = each.value.description
   cidr_blocks              = each.value.cidr_blocks
-  security_group_id        = aws_security_group.mongodb[0].id
+  security_group_id        = local.security_group_id
 }
 
 resource "aws_security_group_rule" "ingress_with_self" {
-  for_each = { for rule in concat(local.ssh_ingress_self, local.mongo_ingress_self) : rule.description => rule if local.create_security_group }
+  for_each = { for rule in concat(local.ssh_ingress_self, local.mongo_ingress_self) : rule.description => rule if local.create_security_group_rules }
 
   type                     = "ingress"
   from_port                = each.value.port
@@ -238,21 +241,21 @@ resource "aws_security_group_rule" "ingress_with_self" {
   protocol                 = "tcp"
   description              = each.value.description
   self                     = true
-  security_group_id        = aws_security_group.mongodb[0].id
+  security_group_id        = local.security_group_id
 }
 
 resource "aws_security_group_rule" "egress" {
-  count = local.create_security_group ? 1 : 0
+  count = local.create_security_group_rules ? 1 : 0
 
   type              = "egress"
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
   cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.mongodb[0].id
+  security_group_id = local.security_group_id
 }
 
-data "template_cloudinit_config" "config" {
+data "template_cloudinit_config" "mongodb" {
   for_each = local.user_data
 
   gzip          = var.create
@@ -275,7 +278,7 @@ resource "aws_instance" "mongodb" {
   ami                    = each.value.image_id
   instance_type          = each.value.instance_type
   key_name               = var.ssh_key_name
-  vpc_security_group_ids = aws_security_group.mongodb[*].id
+  vpc_security_group_ids = [ local.security_group_id ]
   subnet_id              = each.value.subnet_id
 
   root_block_device {
@@ -297,7 +300,7 @@ resource "aws_instance" "mongodb" {
     var.tags
   )
 
-  user_data = data.template_cloudinit_config.config[each.value.name].rendered
+  user_data = data.template_cloudinit_config.mongodb[each.value.name].rendered
 }
 
 resource "aws_route53_zone" "mongodb" {

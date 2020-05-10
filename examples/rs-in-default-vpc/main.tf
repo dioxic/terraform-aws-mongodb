@@ -33,9 +33,9 @@ data "aws_subnet_ids" "default" {
 module "config" {
   source = "github.com/dioxic/terraform-aws-mongodb-config"
 
-  sharded                       = true
-  shard_count                   = 2
-  member_count                  = 5
+  sharded                       = false
+  shard_count                   = 1
+  member_count                  = 3
   config_member_count           = 3
   image_id                      = data.aws_ami.base.image_id
   instance_type                 = "t3.micro"

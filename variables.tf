@@ -32,6 +32,12 @@ variable "create_security_group" {
   default     = true
 }
 
+variable "create_security_group_rules" {
+  description = "Creates a security group rules for MongoDB in the specified `security_group_id` or the created security group if `create_security_group` is true, defaults to `true`"
+  type        = bool
+  default     = true
+}
+
 variable "replica_sets" {
   description = "Replica set configuration for data"
   type        = map(object({
@@ -126,10 +132,9 @@ variable "ssh_key_name" {
   description = "AWS key name you will use to access the MongoDB host instance(s). Required."
 }
 
-variable "vpc_security_group_ids" {
-  description = "VPC security group ids to apply to the EC2 instance."
-  type        = list(string)
-  default     = []
+variable "security_group_id" {
+  description = "Security group to apply to the EC2 instance(s)."
+  default     = null
 }
 
 variable "ssh_ingress_with_security_group_ids" {
@@ -139,9 +144,15 @@ variable "ssh_ingress_with_security_group_ids" {
 }
 
 variable "ssh_ingress_with_cidr_blocks" {
-  description = "List of CIDRs allowed to ingress on SSH port. Defaults to [\"0.0.0.0/0\"]."
+  description = "List of CIDRs allowed to ingress on SSH port, defaults to [\"0.0.0.0/0\"]."
   type        = list(string)
   default     = ["0.0.0.0/0"]
+}
+
+variable "ssh_ingress_with_self" {
+  description = "Allowed ingress on SSH port from within the security group, defaults to `true`."
+  type        = bool
+  default     = true
 }
 
 variable "mongo_ingress_with_security_group_ids" {
@@ -151,9 +162,9 @@ variable "mongo_ingress_with_security_group_ids" {
 }
 
 variable "mongo_ingress_with_cidr_blocks" {
-  description = "List of CIDRs allowed to ingress on MongoDB port(s). Defaults to [\"0.0.0.0/0\"]."
+  description = "List of CIDRs allowed to ingress on MongoDB port(s), defaults to empty list."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "tags" {

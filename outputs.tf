@@ -2,20 +2,20 @@ output "vpc_id" {
   value = var.vpc_id
 }
 
-output "mongodb_security_group_ids" {
-  value = aws_security_group.mongodb[*].id
+output "mongodb_security_group_id" {
+  value = local.security_group_id
 }
 
 output "mongodb_public_ip" {
-  value = [for v in aws_instance.mongodb: v.public_ip]
+  value = values(aws_instance.mongodb)[*].public_ip
 }
 
 output "mongodb_private_ip" {
-  value = [for v in aws_instance.mongodb: v.private_ip]
+  value = values(aws_instance.mongodb)[*].private_ip
 }
 
 output "mongodb_hostnames" {
-  value = [for o in local.nodes: o.fqdn]
+  value = values(local.nodes)[*].fqdn
 }
 
 output "nodes" {
@@ -55,9 +55,16 @@ output "sharded" {
 }
 
 output "security_group_ingress_rules" {
-  value = concat(local.ssh_ingress_self, local.ssh_ingress_cidr, local.ssh_ingress_sg, local.mongo_ingress_self, local.mongo_ingress_cidr, local.mongo_ingress_sg)
+  value = concat(
+    local.ssh_ingress_self,
+    local.ssh_ingress_cidr,
+    local.ssh_ingress_sg,
+    local.mongo_ingress_self,
+    local.mongo_ingress_cidr,
+    local.mongo_ingress_sg
+  )
 }
 
 output "cloudinit_config" {
-  value = data.template_cloudinit_config.config
+  value = data.template_cloudinit_config.mongodb
 }

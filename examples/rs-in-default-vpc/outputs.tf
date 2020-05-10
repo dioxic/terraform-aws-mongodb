@@ -14,8 +14,8 @@ output "mongodb_public_ip" {
   value = module.replicaset.mongodb_public_ip
 }
 
-output "mongodb_security_group_ids" {
-  value = module.replicaset.mongodb_security_group_ids
+output "mongodb_security_group_id" {
+  value = module.replicaset.mongodb_security_group_id
 }
 
 output "ssh_key_name" {
