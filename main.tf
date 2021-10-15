@@ -278,13 +278,6 @@ resource "aws_instance" "mongodb" {
     volume_size = 8
   }
 
-  ebs_block_device {
-    device_name = local.data_block_device
-    volume_type = each.value.volume_type
-    volume_size = each.value.volume_size
-    iops        = each.value.volume_iops
-  }  
-
   tags = merge(
     {
       "Name" = each.key
@@ -293,6 +286,40 @@ resource "aws_instance" "mongodb" {
   )
 
   user_data = data.template_cloudinit_config.mongodb[each.key].rendered
+}
+
+data "aws_subnet" "that" {
+  count = length(var.subnet_ids)
+
+  vpc_id = var.vpc_id
+  id     = var.subnet_ids[count.index]
+}
+
+resource "aws_volume_attachment" "ebs_att" {
+  for_each = var.create ? local.nodes : {}
+
+  device_name = local.data_block_device
+  volume_id   = aws_ebs_volume.data[each.key].id
+  instance_id = aws_instance.mongodb[each.key].id
+}
+
+resource "aws_ebs_volume" "data" {
+  for_each = var.create ? local.nodes : {}
+
+  availability_zone = element(
+    data.aws_subnet.that.*.availability_zone,
+    (each.value.idx % local.subnet_count)
+  )
+  type = each.value.volume_type
+  size = each.value.volume_size
+  iops = each.value.volume_iops
+
+  tags = merge(
+    {
+      "Name" = "${each.key}-data"
+    },
+    var.tags
+  )
 }
 
 resource "aws_route53_zone" "mongodb" {

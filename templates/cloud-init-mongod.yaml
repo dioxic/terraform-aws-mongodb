@@ -1,14 +1,5 @@
 #cloud-config
 
-fs_setup:
-  - label: mongodata
-    filesystem: xfs
-    device: /dev/${data_block_device}
-    overwrite: false
-
-mounts:
-  - [ ${data_block_device}, ${mount_point}, "xfs", "defaults,nofail,noatime", "0", "2" ]
-
 write_files:
   - encoding: b64
     content: ${mongod_conf}
@@ -18,6 +9,23 @@ write_files:
     path: /etc/systemd/system/readahead.service
 
 runcmd:
+  -
+    - bash
+    - -c
+    - |
+      for i in {1..120}; do
+        if [[ -e /dev/${data_block_device} ]]; then
+          if ! file -sL /dev/${data_block_device} | grep -isq XFS; then ## Disk not formated, lets format it
+            mkfs.xfs -L mongodata /dev/${data_block_device}
+          fi
+          mkdir -p ${mount_point}
+          echo "$(blkid  /dev/${data_block_device} | cut -d' ' -f3) ${mount_point}  xfs  defaults,nofail,noatime  0 2" >> /etc/fstab
+          continue
+        fi
+        echo "Mongo Data Device /dev/${data_block_device} not present, sleeping another second, try $i/120"
+        sleep 1
+      done
+      file -sL /dev/${data_block_device} | grep -isq XFS || echo "ERROR: Timeout waiting after 2 minutes for mongo data volume to appear: /dev/${data_block_device}"
   - [ mount, -a ]
   - [ mkdir, -p, ${db_path} ]
   - [ chown, -R, "mongod:mongod", ${db_path} ]
